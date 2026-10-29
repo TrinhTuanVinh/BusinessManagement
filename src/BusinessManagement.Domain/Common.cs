@@ -1,0 +1,16 @@
+// Common/BaseEntity.cs
+public abstract class BaseEntity
+{
+    public Guid Id { get; protected set; } = Guid.CreateVersion7();
+    public DateTime CreatedAt { get; protected set; } = DateTime.UtcNow;
+    public DateTime? UpdatedAt { get; protected set; }
+
+    protected void Touch() => UpdatedAt = DateTime.UtcNow;
+}
+
+// Common/DomainException.cs
+public class DomainException : Exception
+{
+    public DomainException(string message) : base(message) { }
+}
+
