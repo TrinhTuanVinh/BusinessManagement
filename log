@@ -1,0 +1,38 @@
+[1mdiff --git a/BussinessManagement.slnx b/BussinessManagement.slnx[m
+[1mindex 68eb9a4..7d8151b 100644[m
+[1m--- a/BussinessManagement.slnx[m
+[1m+++ b/BussinessManagement.slnx[m
+[36m@@ -1,6 +1,7 @@[m
+ <Solution>[m
+   <Folder Name="/playground/">[m
+     <Project Path="playground/Day01/Day01.csproj" />[m
+[32m+[m[32m    <Project Path="playground/Day03/Day03.csproj" />[m
+   </Folder>[m
+   <Folder Name="/src/">[m
+     <Project Path="src/BusinessManagement.Api/BusinessManagement.Api.csproj" />[m
+[1mdiff --git a/src/BusinessManagement.Application/Class1.cs b/src/BusinessManagement.Application/Class1.cs[m
+[1mdeleted file mode 100644[m
+[1mindex 83af54c..0000000[m
+[1m--- a/src/BusinessManagement.Application/Class1.cs[m
+[1m+++ /dev/null[m
+[36m@@ -1,6 +0,0 @@[m
+[31m-﻿namespace BusinessManagement.Application;[m
+[31m-[m
+[31m-public class Class1[m
+[31m-{[m
+[31m-[m
+[31m-}[m
+[1mdiff --git a/tests/BusinessManagement.IntegrationTests/BusinessManagement.IntegrationTests.csproj b/tests/BusinessManagement.IntegrationTests/BusinessManagement.IntegrationTests.csproj[m
+[1mindex db296aa..77d40b2 100644[m
+[1m--- a/tests/BusinessManagement.IntegrationTests/BusinessManagement.IntegrationTests.csproj[m
+[1m+++ b/tests/BusinessManagement.IntegrationTests/BusinessManagement.IntegrationTests.csproj[m
+[36m@@ -18,4 +18,8 @@[m
+     <Using Include="Xunit" />[m
+   </ItemGroup>[m
+ [m
+[32m+[m[32m  <ItemGroup>[m
+[32m+[m[32m    <ProjectReference Include="..\..\src\BusinessManagement.Application\BusinessManagement.Application.csproj" />[m
+[32m+[m[32m  </ItemGroup>[m
+[32m+[m
+ </Project>[m
+\ No newline at end of file[m

@@ -80,3 +80,17 @@ Ngày 3: SOLID và Dependency Injection.
 - Interface vs abstract class
 - Composition over inheritance
 - Xử lý lỗ hổng trong transitive dependency (ví dụ GHSA-v5pm-xwqc-g5wc)
+
+| 3 | SOLID + DI, refactor OrderProcessor, lifetimes, 43 test | ✅ |
+
+## Quyết định (Ngày 3)
+- Abstraction ở Application; implementation tạm ở playground; ghép ở composition root
+- Loại khách / phương thức thanh toán không hợp lệ: ném DomainException, chưa thanh toán
+- Làm tròn tiền: Math.Round(..., 2, MidpointRounding.AwayFromZero)
+- Hoàn tiền là use case riêng (RefundProcessor), không nằm trong OrderProcessor
+- BankPayment (Singleton) phải stateless / thread-safe
+- Bật cả ValidateScopes và ValidateOnBuild để bắt captive dependency khi khởi động
+
+## Lỗi đã biết
+- Thanh toán → ghi log → thông báo chưa atomic: Record lỗi sau Pay thì tiền đã thu mà không có bản ghi (Ngày 12, 17)
+- IDiscountPolicy vừa chọn đối tượng (CustomerType) vừa tính tiền: xem lại ở Ngày 5 (Strategy)
