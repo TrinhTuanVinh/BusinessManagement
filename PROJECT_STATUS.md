@@ -94,3 +94,19 @@ Ngày 3: SOLID và Dependency Injection.
 ## Lỗi đã biết
 - Thanh toán → ghi log → thông báo chưa atomic: Record lỗi sau Pay thì tiền đã thu mà không có bản ghi (Ngày 12, 17)
 - IDiscountPolicy vừa chọn đối tượng (CustomerType) vừa tính tiền: xem lại ở Ngày 5 (Strategy)
+
+## Quyết định (Ngày 5)
+- Mã voucher sai: ném DomainException TRƯỚC khi thanh toán (không để khách bị tính đủ tiền trong im lặng)
+- Loại khách không có chính sách: không giảm giá, không ném lỗi
+- Một voucher mỗi đơn (nhiều voucher chỉ làm khi có nhu cầu thật)
+- Priority: số nhỏ áp dụng trước; cùng Priority giữ thứ tự đăng ký
+- DiscountCalculator không biết IVoucherFactory; OrderProcessor là nơi điều phối
+DI tạo đối tượng từ thông tin biết lúc khởi động. Mã voucher chỉ biết lúc chạy (khách nhập), nên cần một factory tạo đúng strategy theo mã. Nếu bảng voucher cố định thì chỉ cần đăng ký từng strategy trong DI, không cần Factory
+
+## Quyết định (Ngày 6)
+- Observer trong process, đồng bộ: OrderProcessed → LogOrderHandler, NotifyOrderHandler
+- Handler lỗi: ghi log Error, không ném lại, các handler còn lại vẫn chạy; Process vẫn trả finalAmount
+- Thay đổi hành vi so với Ngày 3-5: trước đây log/notify lỗi làm Process thất bại; nay thì không
+- Giới hạn đã biết: nếu process chết sau Pay và trước khi handler chạy, sự kiện mất.
+  Handler lỗi thì bản ghi (log/thông báo) mất. Giải bằng message queue + Outbox (Ngày 14-17)
+- Không dùng MediatR: danh sách handler qua DI đủ cho nhu cầu hiện tại

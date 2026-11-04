@@ -2,6 +2,44 @@
 
 public class OrderTests
 {
+
+    [Fact]
+    public void ApplyVoucher_ValidCode_TrimsAndUppercases()
+    {
+        var order = new Order(Guid.NewGuid());
+
+        order.ApplyVoucher("  sale50k ");
+
+        Assert.Equal("SALE50K", order.VoucherCode);
+        Assert.NotNull(order.UpdatedAt);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ApplyVoucher_EmptyCode_ThrowsAndKeepsVoucherNull(string? code)
+    {
+        var order = new Order(Guid.NewGuid());
+
+        var ex = Assert.Throws<DomainException>(() => order.ApplyVoucher(code!));
+
+        Assert.Contains("Voucher code", ex.Message);
+        Assert.Null(order.VoucherCode);
+    }
+
+    [Fact]
+    public void ApplyVoucher_OrderAlreadyConfirmed_Throws()
+    {
+        var order = new Order(Guid.NewGuid());
+        order.AddItem(new Product("Wood 1", "Wood", 19m, 10), 1);
+        order.Confirm();
+
+        var ex = Assert.Throws<DomainException>(() => order.ApplyVoucher("SALE50K"));
+
+        Assert.Contains("pending", ex.Message);
+        Assert.Null(order.VoucherCode);
+    }
     [Fact]
     public void Confirm_ItemIsEmpty_ThrowDomainException()
     {

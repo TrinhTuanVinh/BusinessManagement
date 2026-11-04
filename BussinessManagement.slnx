@@ -2,6 +2,7 @@
   <Folder Name="/playground/">
     <Project Path="playground/Day01/Day01.csproj" />
     <Project Path="playground/Day03/Day03.csproj" />
+    <Project Path="playground/Day04/Day04.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/BusinessManagement.Api/BusinessManagement.Api.csproj" />

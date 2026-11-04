@@ -40,6 +40,7 @@ public class Order : BaseEntity
     public Guid CustomerId { get; private set; }
     public OrderStatus Status { get; private set; }
     public Customer? Customer { get; private set; }
+    public string? VoucherCode { get; private set; }
     private readonly List<OrderItem> _items = new();
     public decimal Total => _items.Sum(
         x => x.Quantity * x.UnitPrice
@@ -104,6 +105,14 @@ public class Order : BaseEntity
             throw new DomainException("Order has been cancelled!");
         }
         Status = OrderStatus.Cancelled;
+        Touch();
+    }
+
+    public void ApplyVoucher(string code)
+    {
+        if (Status != OrderStatus.Pending) throw new DomainException("Order must be pending!");
+        if (string.IsNullOrWhiteSpace(code)) throw new DomainException("Voucher code is required.");
+        VoucherCode = code.Trim().ToUpperInvariant();
         Touch();
     }
 }
