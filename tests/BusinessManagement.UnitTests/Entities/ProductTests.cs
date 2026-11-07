@@ -1,3 +1,8 @@
+using BusinessManagement.Domain.Common;
+using BusinessManagement.Domain.Entities;
+
+namespace BusinessManagement.UnitTests.Entities;
+
 public class ProductTests
 {
     [Fact]

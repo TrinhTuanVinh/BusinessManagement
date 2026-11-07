@@ -1,0 +1,19 @@
+<Solution>
+  <Folder Name="/learning/">
+    <Project Path="learning/Day01/Day01.csproj" />
+    <Project Path="learning/Day04/Day04.csproj" />
+  </Folder>
+  <Folder Name="/playground/">
+    <Project Path="learning/Day03/Day03.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/BusinessManagement.Api/BusinessManagement.Api.csproj" />
+    <Project Path="src/BusinessManagement.Application/BusinessManagement.Application.csproj" />
+    <Project Path="src/BusinessManagement.Domain/BusinessManagement.Domain.csproj" />
+    <Project Path="src/BusinessManagement.Infrastructure/BusinessManagement.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BusinessManagement.IntegrationTests/BusinessManagement.IntegrationTests.csproj" />
+    <Project Path="tests/BusinessManagement.UnitTests/BusinessManagement.UnitTests.csproj" />
+  </Folder>
+</Solution>

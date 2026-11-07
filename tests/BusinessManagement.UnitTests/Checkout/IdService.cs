@@ -1,4 +1,4 @@
-
+namespace BusinessManagement.UnitTests.Checkout;
 public interface ITransientId { Guid Id { get; } }
 public interface IScopedId    { Guid Id { get; } }
 public interface ISingletonId { Guid Id { get; } }

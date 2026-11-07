@@ -1,0 +1,62 @@
+using BusinessManagement.Application;
+using BusinessManagement.Application.Checkout.Events;
+using BusinessManagement.Application.Checkout.Payments;
+using BusinessManagement.Infrastructure;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+public class CompositionRootTests
+{
+    private static ServiceProvider Build(Dictionary<string, string?>? settings = null)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(settings ?? new Dictionary<string, string?>
+            {
+                ["Payments:Bank:MerchantAccount"] = "TEST-ACCOUNT"
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddApplication();
+        services.AddInfrastructure(configuration);
+
+        return services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateScopes = true,
+            ValidateOnBuild = true
+        });
+    }
+
+    [Fact]
+    public void Container_BuildsAndResolvesUseCases()
+    {
+        using var provider = Build();
+        using var scope = provider.CreateScope();
+
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<OrderProcessor>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<RefundProcessor>());
+    }
+
+    [Fact]
+    public void PaymentMethods_HaveUniqueKeysAndIncludeBank()
+    {
+        using var provider = Build();
+        using var scope = provider.CreateScope();
+
+        var keys = scope.ServiceProvider.GetServices<IPaymentMethod>()
+            .Select(p => p.PaymentMethod).ToList();
+
+        Assert.Equal(keys.Count, keys.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Contains(keys, k => k.Equals("Bank", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void AddInfrastructure_MissingMerchantAccount_FailsFast()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => Build(new Dictionary<string, string?>()));
+
+        Assert.Contains("MerchantAccount", ex.Message);
+    }
+}

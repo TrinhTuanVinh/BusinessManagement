@@ -1,4 +1,12 @@
 
+using BusinessManagement.Application.Checkout.Discount;
+using BusinessManagement.Application.Checkout.Payments;
+using BusinessManagement.Domain.Common;
+using BusinessManagement.Domain.Entities;
+using BusinessManagement.UnitTests.Support;
+
+namespace BusinessManagement.UnitTests.Checkout;
+
 public class OrderProcessorTests
 {
 
@@ -253,11 +261,15 @@ public class OrderProcessorTests
         Assert.Empty(notifier.Sent);
     }
 
-    public class TestDiscount : IDiscountPolicy
+    public class TestDiscount : IDiscountStrategy
     {
-        public string CustomerType => "Test";
+        public int Priority => 1;
 
-        public decimal Calculate(decimal orderTotal) => Math.Round(orderTotal * 0.05m, 2, MidpointRounding.AwayFromZero);
+        public decimal CalculateDiscount(DiscountContext context) => Math.Round(context.OrderTotal * 0.05m, 2, MidpointRounding.AwayFromZero);
+        public bool IsApplicable(DiscountContext context)
+        {
+            return context.CustomerType == "Test";
+        }
     }
 
 

@@ -1,0 +1,1 @@
+public record QuoteResponse(decimal OrderTotal, decimal Discount, decimal FinalAmount);

@@ -1,3 +1,9 @@
+using BusinessManagement.Application.Checkout.Discount;
+using BusinessManagement.Application.Checkout.Payments;
+using BusinessManagement.Domain.Common;
+using BusinessManagement.Domain.Entities;
+
+namespace BusinessManagement.Application.Checkout.Events;
 
 public class OrderProcessor
 {

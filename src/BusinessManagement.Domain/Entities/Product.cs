@@ -1,4 +1,6 @@
+using BusinessManagement.Domain.Common;
 
+namespace BusinessManagement.Domain.Entities;
 // Entities/Product.cs
 public class Product : BaseEntity
 {

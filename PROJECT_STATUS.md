@@ -10,7 +10,7 @@ Business Management API (ASP.NET Core): Auth, Products, Customers, Orders, Payme
 | Auth (JWT, role), CRUD Products/Customers, Orders + trừ kho trong transaction, Payments (bản ghi nghiệp vụ), validation, logging, unit + integration test, Docker Compose, RabbitMQ (retry, DLQ, idempotent consumer) | Permission chi tiết, Transactional Outbox, Idempotency-Key, Kafka demo, health checks | Microservices, CQRS/MediatR, thanh toán thật, frontend |
 
 ## 2. Công nghệ và phiên bản
-- .NET SDK 10.0.300 / runtime 10.0.8 (LTS, hỗ trợ đến 11/2028)
+- .NET SDK 10.0.300 / runtime 10.0.14 (LTS, hỗ trợ đến 11/2028)
 - ASP.NET Core Web API (controllers), EF Core 10 *(chưa cài)*, PostgreSQL *(chưa cài)*
 - xUnit, Docker Compose *(chưa)*, RabbitMQ *(chưa)*
 - Microsoft.OpenApi **2.7.5** (ghim thủ công, xem mục 5)
@@ -110,3 +110,14 @@ DI tạo đối tượng từ thông tin biết lúc khởi động. Mã voucher
 - Giới hạn đã biết: nếu process chết sau Pay và trước khi handler chạy, sự kiện mất.
   Handler lỗi thì bản ghi (log/thông báo) mất. Giải bằng message queue + Outbox (Ngày 14-17)
 - Không dùng MediatR: danh sách handler qua DI đủ cho nhu cầu hiện tại
+
+## Quyết định (Ngày 7, Bước D)
+- POST /api/pricing/quote trả 200 (chỉ tính, không tạo tài nguyên)
+- Lỗi hình thức (thiếu trường, sai khoảng) → 400 ở DTO; lỗi nghiệp vụ (voucher sai) → 422 từ DomainException
+- Validation attribute trên DTO record đặt ở tham số constructor, KHÔNG dùng [property: ...] (MVC ném InvalidOperationException)
+- PricingService chuẩn hoá (Trim, ToUpper) mã voucher và loại khách trước khi tính
+- Loại khách không có chính sách: không giảm giá (không lỗi)
+
+## Lỗi đã biết
+- Logic tra voucher nằm ở cả OrderProcessor và PricingService → Ngày 12: OrderService dùng lại PricingService
+- OrderTotal có hơn 2 chữ số thập phân vẫn được chấp nhận (DB sẽ là decimal(18,2)); cân nhắc IValidatableObject

@@ -1,3 +1,6 @@
+using BusinessManagement.Domain.Common;
+
+namespace BusinessManagement.Domain.Entities;
 
 public class Customer : BaseEntity
 {
@@ -33,7 +36,7 @@ public class Customer : BaseEntity
         IsActive = true;
         Touch();
     }
-    public void UpdateContact(string fullName = "", string email = "", string phone = "", string address = "", bool isActive = false)
+    public void UpdateContact(string fullName, string email, string phone, string address)
     {
         FullName = NormalizeName(fullName);
         Email = NormalizeEmail(email);

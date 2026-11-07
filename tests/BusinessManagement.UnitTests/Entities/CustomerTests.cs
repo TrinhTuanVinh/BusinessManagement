@@ -1,3 +1,8 @@
+using BusinessManagement.Domain.Common;
+using BusinessManagement.Domain.Entities;
+
+namespace BusinessManagement.UnitTests.Entities;
+
 public class CustomerTests
 {
     [Fact]
@@ -29,7 +34,7 @@ public class CustomerTests
     public void UpdateContact_WhenSuccess_UpdateEmail()
     {
         Customer customer = new Customer("Vinh", "INH@gmail.com", "099999223", "333 KDV");
-        customer.UpdateContact(customer.FullName, "Vinh@gmail.com");
+        customer.UpdateContact(customer.FullName, "Vinh@gmail.com", "", "");
 
         Assert.Equal("vinh@gmail.com", customer.Email);
     }

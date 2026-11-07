@@ -1,3 +1,6 @@
+using BusinessManagement.Application.Checkout.Discount;
+
+namespace BusinessManagement.UnitTests.Checkout;
 public class VoucherFactoryTests
 {
     private readonly InMemoryVoucherFactory _sut = new();
