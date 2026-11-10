@@ -4,6 +4,7 @@ namespace BusinessManagement.Domain.Entities;
 
 public class Order : BaseEntity
 {
+    private Order() { }
     public Guid CustomerId { get; private set; }
     public OrderStatus Status { get; private set; }
     public Customer? Customer { get; private set; }

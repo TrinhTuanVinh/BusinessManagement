@@ -1,3 +1,4 @@
+namespace BusinessManagement.Api.Contracts.Requests;
 
 using System.ComponentModel.DataAnnotations;
 

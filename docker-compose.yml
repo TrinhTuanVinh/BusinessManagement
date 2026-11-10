@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:18
+    container_name: bm-db
+    environment:
+      POSTGRES_DB: businessmanagement
+      POSTGRES_USER: "${POSTGRES_USER:-app}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+    ports:
+      - "5434:5432"
+    volumes:
+      - bm-pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d businessmanagement"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  bm-pgdata:
