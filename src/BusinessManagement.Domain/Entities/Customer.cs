@@ -9,7 +9,7 @@ public class Customer : BaseEntity
     public string Email { get; private set; } = null!;
     public string? Phone { get; private set; }
     public string? Address { get; private set; }
-    public bool? IsActive { get; private set; }
+    public bool IsActive { get; private set; }
 
     public Customer(string fullName, string email, string? phone = null, string? address = null)
     {
@@ -50,7 +50,7 @@ public class Customer : BaseEntity
         if (string.IsNullOrWhiteSpace(name)) throw new DomainException("Fullname is required");
         return name.Trim();
     }
-    private static string NormalizeEmail(string email)
+    public static string NormalizeEmail(string email)
     {
         if (string.IsNullOrWhiteSpace(email)) throw new DomainException("Email is required");
         email = email.Trim().ToLower();

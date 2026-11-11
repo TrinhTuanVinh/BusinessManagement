@@ -144,10 +144,10 @@ public class ProductServiceTests(PostgresFixture fixture)
         var result = await new ProductService(db).ListAsync(
             new ProductListQuery(null, category, null, null, null, null, 1, 1000), Ct);
 
-        Assert.Equal(1000, result.PageSize);
-        Assert.Equal(101, result.Items.Count);
+        Assert.Equal(100, result.PageSize);
+        Assert.Equal(100, result.Items.Count);
         Assert.Equal(101, result.TotalCount);
-        Assert.Equal(1, result.TotalPage);
+        Assert.Equal(2, result.TotalPage);
     }
 
     [Fact]

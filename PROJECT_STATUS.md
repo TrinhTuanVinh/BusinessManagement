@@ -183,3 +183,33 @@ Ngày 9: CRUD Products và Customers (DTO, validation, phân trang, lọc, sắp
 - AlterColumn từ nullable sang NOT NULL khiến EF sinh defaultValue, và Npgsql tạo DEFAULT thật trong DB. Xoá dòng đó khỏi file sau khi đã áp dụng không gỡ được DEFAULT, vì EF chỉ DROP DEFAULT khi biết default cũ. Phải xoá defaultValue trước khi áp dụng migration lần đầu, hoặc chạy ALTER ... DROP DEFAULT bằng tay (hoặc trong một migration mới nếu DB đã chia sẻ).
 - LINQ trả về truy vấn mới: quên gán lại thì bộ lọc im lặng biến mất; test có TotalCount trên dữ liệu có sẵn mới bắt được
 - Test dùng dữ liệu riêng (Guid trong email, nhóm riêng) vì cả collection dùng chung một DB
+
+## Quyết định (Ngày 9)
+- Đọc: AsNoTracking + projection; ghi: entity được theo dõi + phương thức Domain; một use case một SaveChangesAsync
+- Phân trang offset, pageSize ≤ 100, sắp xếp whitelist, luôn có ThenBy(Id)
+- PUT không sửa tồn kho; ngừng/kích hoạt khách bằng POST .../deactivate và .../activate (không có DELETE)
+- Email trùng: AnyAsync (thân thiện) + unique index (bảo đảm, chặn cả race condition)
+- 400 = sai hình thức (DTO); 404 = tài nguyên không có (cũng có 404 do routing); 409 = xung đột dữ liệu (kể cả DbUpdateException 23xxx); 422 = vi phạm quy tắc Domain
+
+## Bài học Ngày 9
+- LINQ trả về truy vấn mới: quên gán lại thì bộ lọc im lặng biến mất; test có TotalCount trên dữ liệu có sẵn mới bắt được
+- Test dùng dữ liệu riêng (Guid trong email, nhóm riêng) vì cả collection dùng chung một DB
+
+## Nợ kỹ thuật (thêm)
+- Chưa có [Authorize] trên các endpoint CRUD (Ngày 11)
+- PUT là "ghi đè cuối cùng thắng"; kiểm soát đồng thời xử lý ở Ngày 12
+- Sắp xếp theo tên phụ thuộc collation PostgreSQL (tiếng Việt có dấu có thể sắp sai)
+- Tìm kiếm ToLower().Contains(...) không dùng được index; cân nhắc trigram nếu bảng lớn
+
+## Ngày 10: SQL, index, EXPLAIN, N+1
+| Thí nghiệm | Kết quả |
+|---|---|
+| Đơn của một khách, mới nhất trước | Index Scan Backward trên (CustomerId, CreatedAt): 0,12 ms, không Sort |
+| Đơn 7 ngày gần đây | Seq Scan 24,3 ms → Index Only Scan 0,48 ms sau khi thêm index CreatedAt (~50x) |
+| Status = 'Confirmed' (100% dòng) | Seq Scan dù có index: index chọn lọc thấp không giúp ích |
+| lower(Name) LIKE '%x%' | Seq Scan, ước lượng 1 so với thực tế 111; B-tree không dùng được cho wildcard đầu; hướng xử lý: pg_trgm |
+| Báo cáo top khách (300k dòng hàng) | 441 ms; COUNT(DISTINCT) gây Sort external merge ra đĩa 15 MB; chấp nhận được ở quy mô này |
+
+- IX_Orders_CreatedAt: <giữ/xoá và lý do>
+- N+1: ReportService luôn đúng 2 truy vấn (khoá bằng test đếm truy vấn bằng DbCommandInterceptor)
+- Nợ: báo cáo cần [Authorize(AdminOnly)] (Ngày 11); xem lại nếu báo cáo được gọi dày

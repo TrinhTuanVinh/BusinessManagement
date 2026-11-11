@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BusinessManagement.Application.Customers;
 
-public record CustomerDto(Guid Id, string FullName, string Email, string? Phone, string? Address, bool? IsActive, DateTime CreatedAt, DateTime? UpdatedAt);
+public record CustomerDto(Guid Id, string FullName, string Email, string? Phone, string? Address, bool IsActive, DateTime CreatedAt, DateTime? UpdatedAt);
 
 public record CustomerListQuery(string? Search, bool? IsActive, string? Sort, int Page = 1, int PageSize = 20);
 
@@ -61,7 +61,8 @@ public class CustomerService
     {
         var customer = await _db.Customers.FirstOrDefaultAsync(p => p.Id == id, ct)
            ?? throw new NotFoundException($"Customer '{id}' was not found.");
-        var checkExist = await _db.Customers.AnyAsync(c => c.Email == email && c.Id != id, ct);
+        var emailNomalize = Customer.NormalizeEmail(email);
+        var checkExist = await _db.Customers.AnyAsync(c => c.Email == emailNomalize && c.Id != id, ct);
         if (checkExist)
             throw new ConflictException("A customer with this email already exists.");
 

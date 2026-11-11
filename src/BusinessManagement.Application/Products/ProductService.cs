@@ -21,6 +21,8 @@ public class ProductService
     private readonly IAppDbContext _db;
     public ProductService(IAppDbContext db) => _db = db;
 
+    private static string EscapeLike(string s) =>
+        s.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
     public async Task<ProductDTO> CreateAsync(string name, string category, decimal price, int stock, CancellationToken ct)
     {
         var product = new Product(name, category, price, stock);
@@ -35,7 +37,7 @@ public class ProductService
     public async Task<PageResult<ProductDTO>> ListAsync(ProductListQuery listQuery, CancellationToken ct)
     {
         var page = Math.Clamp(listQuery.Page, 1, 100_000);
-        var pageSize = Math.Clamp(listQuery.PageSize, 1, 100_00);
+        var pageSize = Math.Clamp(listQuery.PageSize, 1, 100);
 
         IQueryable<Product> query = _db.Products.AsNoTracking();
 
@@ -46,9 +48,10 @@ public class ProductService
         }
         if (!string.IsNullOrWhiteSpace(listQuery.Search))
         {
-            var s = listQuery.Search.Trim().ToLowerInvariant();
-            query = query.Where(p => p.Name.ToLower().Contains(s));
+            var pattern = $"%{EscapeLike(listQuery.Search.Trim())}%";
+            query = query.Where(p => EF.Functions.ILike(p.Name, pattern, "\\"));
         }
+
 
         if (listQuery.MinPrice is { } min) query = query.Where(p => p.Price >= min);
         if (listQuery.MaxPrice is { } max) query = query.Where(p => p.Price <= max);
@@ -60,7 +63,7 @@ public class ProductService
         var items = await ApplySort(query, listQuery.Sort)
         .Skip((page - 1) * pageSize).Take(pageSize)
         .Select(ToDtoExpr)
-        .ToListAsync();
+        .ToListAsync(ct);
 
         return new PageResult<ProductDTO>(items, page, pageSize, total);
     }

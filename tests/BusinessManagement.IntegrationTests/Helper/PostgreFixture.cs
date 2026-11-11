@@ -1,5 +1,6 @@
 using BusinessManagement.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 using Testcontainers.PostgreSql;
 
@@ -17,8 +18,15 @@ public sealed class PostgresFixture : IAsyncLifetime
 
     public Task DisposeAsync() => _container.DisposeAsync().AsTask();
 
-    public AppDbContext CreateContext() => new(
-        new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(_container.GetConnectionString()).Options);
+    public AppDbContext CreateContext(params IInterceptor[] interceptors)
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(_container.GetConnectionString())
+            .AddInterceptors(interceptors)
+            .Options;
+
+        return new AppDbContext(options);
+    }
 }
 
 [CollectionDefinition("postgres")]

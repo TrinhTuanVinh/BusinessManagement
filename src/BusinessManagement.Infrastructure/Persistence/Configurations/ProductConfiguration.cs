@@ -20,5 +20,6 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         b.Property(p => p.Price).HasPrecision(18, 2);
         b.HasIndex(p => p.Category);
         b.HasIndex(p => p.Name);
+        // b.HasIndex(p => new { p.Category, p.Name, p.Id });
     }
 }

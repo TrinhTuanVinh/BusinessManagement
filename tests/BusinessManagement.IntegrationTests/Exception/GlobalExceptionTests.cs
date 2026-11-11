@@ -94,4 +94,23 @@ public class GlobalExceptionHandlerTests
 
         return (context.Response.StatusCode, body);
     }
+    [Theory]
+    [InlineData("23001")]
+    [InlineData("23503")]
+    [InlineData("23505")]
+    public async Task Handle_IntegrityViolation_Returns409(string sqlState)
+    {
+        var pg = new PostgresException("msg", "ERROR", "ERROR", sqlState);
+        var (status, _) = await InvokeAsync(new DbUpdateException("save failed", pg));
+        Assert.Equal(409, status);
+    }
+
+    [Fact]
+    public async Task Handle_NonIntegrityDbError_Returns500WithoutDetails()   // 22001: chuỗi quá dài
+    {
+        var pg = new PostgresException("value too long", "ERROR", "ERROR", "22001");
+        var (status, body) = await InvokeAsync(new DbUpdateException("save failed", pg));
+        Assert.Equal(500, status);
+        Assert.DoesNotContain("value too long", body);
+    }
 }
