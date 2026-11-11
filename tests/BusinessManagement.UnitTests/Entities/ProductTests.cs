@@ -82,4 +82,81 @@ public class ProductTests
 
         Assert.Throws<DomainException>(() => product.DecreaseStock(6));
     }
+
+    [Fact]
+    public void UpdateDetails_ValidInput_UpdatesDetailsAndKeepsStock()
+    {
+        var product = new Product("Old Name", "Old Category", 100m, 10);
+
+        product.UpdateDetails("  New Name  ", "  New Category  ", 200m);
+
+        Assert.Equal("New Name", product.Name);
+        Assert.Equal("New Category", product.Category);
+        Assert.Equal(200m, product.Price);
+        Assert.Equal(10, product.Stock);
+        Assert.NotEqual(default, product.UpdatedAt);
+    }
+
+    [Fact]
+    public void UpdateDetails_EmptyName_ThrowsAndDoesNotChangeFields()
+    {
+        var product = new Product("Old Name", "Old Category", 100m, 10);
+
+        var oldName = product.Name;
+        var oldCategory = product.Category;
+        var oldPrice = product.Price;
+        var oldStock = product.Stock;
+        var oldUpdatedAt = product.UpdatedAt;
+
+        Assert.Throws<DomainException>(() =>
+            product.UpdateDetails("", "New Category", 200m));
+
+        Assert.Equal(oldName, product.Name);
+        Assert.Equal(oldCategory, product.Category);
+        Assert.Equal(oldPrice, product.Price);
+        Assert.Equal(oldStock, product.Stock);
+        Assert.Equal(oldUpdatedAt, product.UpdatedAt);
+    }
+
+    [Fact]
+    public void UpdateDetails_NegativePrice_ThrowsAndDoesNotChangeFields()
+    {
+        var product = new Product("Old Name", "Old Category", 100m, 10);
+
+        var oldName = product.Name;
+        var oldCategory = product.Category;
+        var oldPrice = product.Price;
+        var oldStock = product.Stock;
+        var oldUpdatedAt = product.UpdatedAt;
+
+        Assert.Throws<DomainException>(() =>
+            product.UpdateDetails("New Name", "New Category", -100m));
+
+        Assert.Equal(oldName, product.Name);
+        Assert.Equal(oldCategory, product.Category);
+        Assert.Equal(oldPrice, product.Price);
+        Assert.Equal(oldStock, product.Stock);
+        Assert.Equal(oldUpdatedAt, product.UpdatedAt);
+    }
+
+    [Fact]
+    public void UpdateDetails_EmptyCategory_ThrowsAndDoesNotChangeFields()
+    {
+        var product = new Product("Old Name", "Old Category", 100m, 10);
+
+        var oldName = product.Name;
+        var oldCategory = product.Category;
+        var oldPrice = product.Price;
+        var oldStock = product.Stock;
+        var oldUpdatedAt = product.UpdatedAt;
+
+        Assert.Throws<DomainException>(() =>
+            product.UpdateDetails("New Name", "", 200m));
+
+        Assert.Equal(oldName, product.Name);
+        Assert.Equal(oldCategory, product.Category);
+        Assert.Equal(oldPrice, product.Price);
+        Assert.Equal(oldStock, product.Stock);
+        Assert.Equal(oldUpdatedAt, product.UpdatedAt);
+    }
 }

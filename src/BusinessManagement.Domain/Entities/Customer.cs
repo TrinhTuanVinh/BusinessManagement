@@ -4,8 +4,9 @@ namespace BusinessManagement.Domain.Entities;
 
 public class Customer : BaseEntity
 {
-    public string FullName { get; private set; }
-    public string Email { get; private set; }
+    private Customer() { }
+    public string FullName { get; private set; } = null!;
+    public string Email { get; private set; } = null!;
     public string? Phone { get; private set; }
     public string? Address { get; private set; }
     public bool IsActive { get; private set; }
@@ -20,7 +21,7 @@ public class Customer : BaseEntity
     }
     public void Deactivate()
     {
-        if (!IsActive)
+        if (IsActive == false)
         {
             throw new DomainException("Customer is inactive already!");
         }
@@ -29,14 +30,14 @@ public class Customer : BaseEntity
     }
     public void Activate()
     {
-        if (IsActive)
+        if (IsActive == true)
         {
             throw new DomainException("Customer is active already");
         }
         IsActive = true;
         Touch();
     }
-    public void UpdateContact(string fullName, string email, string phone, string address)
+    public void UpdateContact(string fullName, string email, string? phone, string? address)
     {
         FullName = NormalizeName(fullName);
         Email = NormalizeEmail(email);
@@ -49,7 +50,7 @@ public class Customer : BaseEntity
         if (string.IsNullOrWhiteSpace(name)) throw new DomainException("Fullname is required");
         return name.Trim();
     }
-    private static string NormalizeEmail(string email)
+    public static string NormalizeEmail(string email)
     {
         if (string.IsNullOrWhiteSpace(email)) throw new DomainException("Email is required");
         email = email.Trim().ToLower();

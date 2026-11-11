@@ -1,7 +1,9 @@
 using BusinessManagement.Application;
+using BusinessManagement.Application.Abstractions;
 using BusinessManagement.Application.Checkout.Events;
 using BusinessManagement.Application.Checkout.Payments;
 using BusinessManagement.Infrastructure;
+using BusinessManagement.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -12,7 +14,8 @@ public class CompositionRootTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(settings ?? new Dictionary<string, string?>
             {
-                ["Payments:Bank:MerchantAccount"] = "TEST-ACCOUNT"
+                ["Payments:Bank:MerchantAccount"] = "TEST-ACCOUNT",
+                ["ConnectionStrings:Default"] = "Host=localhost;Database=unused;Username=u;Password=p"
             })
             .Build();
 
@@ -58,5 +61,23 @@ public class CompositionRootTests
             () => Build(new Dictionary<string, string?>()));
 
         Assert.Contains("MerchantAccount", ex.Message);
+    }
+    [Fact]
+    public void DbContext_IsScoped_AndInterfaceResolvesToSameInstance()
+    {
+        using var provider = Build();
+        using var scope = provider.CreateScope();
+
+        Assert.Same(scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+                    scope.ServiceProvider.GetRequiredService<IAppDbContext>());
+    }
+
+    [Fact]
+    public void AddInfrastructure_MissingConnectionString_FailsFast()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            Build(new Dictionary<string, string?> { ["Payments:Bank:MerchantAccount"] = "TEST" }));
+
+        Assert.Contains("ConnectionStrings", ex.Message);
     }
 }

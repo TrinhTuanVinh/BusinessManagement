@@ -4,6 +4,9 @@ using BusinessManagement.Application.Checkout.Events;
 using BusinessManagement.Application.Checkout.Payments;
 using BusinessManagement.Application.Checkout.Ports;
 using BusinessManagement.Application.Checkout.Pricing;
+using BusinessManagement.Application.Customers;
+using BusinessManagement.Application.Products;
+using BusinessManagement.Application.Reports;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BusinessManagement.Application;
@@ -20,7 +23,11 @@ public static class DependencyInjection
             new PercentDiscount(1, 0.05m, c => IsCustomerType(c, "Student")));
         services.AddSingleton<IVoucherFactory, InMemoryVoucherFactory>();
         services.AddScoped<PricingService>();
-        
+
+        services.AddScoped<ProductService>();
+        services.AddScoped<CustomerService>();
+        services.AddScoped<ReportService>();
+
         services.AddScoped<DiscountCalculator>();
         services.AddScoped<IOrderProcessedHandler, LogOrderHandler>();
         services.AddScoped<IOrderProcessedHandler, NotifyOrderHandler>();
