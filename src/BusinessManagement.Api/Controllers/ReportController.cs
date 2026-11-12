@@ -1,9 +1,11 @@
 using System.ComponentModel.DataAnnotations;
 using BusinessManagement.Application.Reports;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
 [Route("api/reports")]
+[Authorize(Policy = "AdminOnly")]
 public class ReportsController(ReportService reports) : ControllerBase
 {
     [HttpGet("top-customers")]

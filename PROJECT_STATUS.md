@@ -213,3 +213,19 @@ Ngày 9: CRUD Products và Customers (DTO, validation, phân trang, lọc, sắp
 - IX_Orders_CreatedAt: <giữ/xoá và lý do>
 - N+1: ReportService luôn đúng 2 truy vấn (khoá bằng test đếm truy vấn bằng DbCommandInterceptor)
 - Nợ: báo cáo cần [Authorize(AdminOnly)] (Ngày 11); xem lại nếu báo cáo được gọi dày
+
+## Quyết định (Ngày 11)
+- Mật khẩu: PasswordHasher của ASP.NET Core Identity (PBKDF2, muối ngẫu nhiên); chỉ lưu hash
+- JWT HS256: claim sub, email, role; kiểm tra chữ ký, issuer, audience, hạn (30 phút), ClockSkew 30 giây; MapInboundClaims = false và RoleClaimType = "role"
+- Fallback policy: mọi endpoint yêu cầu đăng nhập; công khai chỉ /health, /openapi, register, login
+- Đăng ký công khai luôn là Staff; nâng Admin bằng SQL (chủ ý, chưa có quản lý người dùng)
+- Đăng nhập sai: cùng thông báo cho email sai và mật khẩu sai, luôn chạy một lần băm (chống dò tài khoản và timing)
+- JwtOptions là nguồn duy nhất cho cả tạo và kiểm tra token; thiếu hoặc khoá < 32 byte thì app không khởi động
+- [AllowAnonymous] đặt ở từng action, không đặt ở cấp class
+
+## Nợ kỹ thuật (thêm)
+- JWT stateless: user bị khoá hoặc đổi vai trò vẫn dùng được token cũ đến khi hết hạn; cần refresh token và thu hồi
+- Chưa có rate limiting và khoá tài khoản khi đăng nhập sai nhiều lần
+- 401 và 403 trả thân rỗng (chưa là ProblemDetails)
+- Đăng ký trả 409 khi email trùng: lộ email nào đã đăng ký (chấp nhận với công cụ nội bộ)
+- Chưa có quản lý người dùng và đổi mật khẩu

@@ -32,6 +32,7 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
         DbUpdateException { InnerException: PostgresException pg }
             when pg.SqlState.StartsWith("23", StringComparison.Ordinal)
                            => (StatusCodes.Status409Conflict, "Data conflict", "The request conflicts with existing data."),
+        AuthenticationFailedException => (StatusCodes.Status401Unauthorized, "Authentication failed", ex.Message),
         _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred", null),
     };
 }

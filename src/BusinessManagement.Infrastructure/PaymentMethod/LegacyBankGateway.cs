@@ -4,11 +4,9 @@ using BusinessManagement.Domain.Common;
 
 namespace BusinessManagement.Infrastructure.PaymentMethod;
 
-
-// Coi như đây là DLL của bên khác
 public class LegacyBankGateway
 {
-    public virtual int Send(string accountNo, long amountInDong) => 0;   // 0 = thành công, khác 0 = mã lỗi
+    public virtual int Send(string accountNo, long amountInDong) => 0;
 }
 public class LegacyBankPaymentAdapter : IPaymentMethod
 {

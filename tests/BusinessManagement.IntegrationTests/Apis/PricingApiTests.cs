@@ -3,21 +3,22 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using BusinessManagement.Api.Contracts.Response;
 using BusinessManagement.Application.Checkout.Pricing;
+using BusinessManagement.IntegrationTests.Helpers;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace BusinessManagement.IntegrationTests.Apis;
 
-public class PricingApiTests : IClassFixture<WebApplicationFactory<Program>>
+public class PricingApiTests : IClassFixture<ApiFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly ApiFactory _factory;
     private readonly HttpClient _client;
 
-    public PricingApiTests(WebApplicationFactory<Program> factory)
+    public PricingApiTests(ApiFactory factory)
     {
         _factory = factory;
-        _client = factory.CreateClient();
+        _client = factory.CreateClientFor("Staff");
     }
 
     private static async Task<JsonElement> ReadJsonAsync(HttpResponseMessage response)
@@ -101,7 +102,7 @@ public class PricingApiTests : IClassFixture<WebApplicationFactory<Program>>
                 services.AddScoped<PricingService>(_ =>
                     throw new InvalidOperationException("secret-internal-detail"));
             })).CreateClient();
-
+        client.DefaultRequestHeaders.Authorization = new("Bearer", TestTokens.Create("Staff"));
         var response = await client.PostAsJsonAsync("/api/pricing/quote",
             new { orderTotal = 1_000_000m, customerType = "VIP" });
 

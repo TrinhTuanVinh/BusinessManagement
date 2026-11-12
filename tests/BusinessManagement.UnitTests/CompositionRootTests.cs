@@ -15,7 +15,10 @@ public class CompositionRootTests
             .AddInMemoryCollection(settings ?? new Dictionary<string, string?>
             {
                 ["Payments:Bank:MerchantAccount"] = "TEST-ACCOUNT",
-                ["ConnectionStrings:Default"] = "Host=localhost;Database=unused;Username=u;Password=p"
+                ["ConnectionStrings:Default"] = "Host=localhost;Database=unused;Username=u;Password=p",
+                ["Jwt:Issuer"] = "i",
+                ["Jwt:Audience"] = "a",
+                ["Jwt:Key"] = new string('k', 40)
             })
             .Build();
 
@@ -79,5 +82,21 @@ public class CompositionRootTests
             Build(new Dictionary<string, string?> { ["Payments:Bank:MerchantAccount"] = "TEST" }));
 
         Assert.Contains("ConnectionStrings", ex.Message);
+    }
+
+    [Fact]
+    public void AddInfrastructure_ShortJwtKey_FailsFast()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            Build(new Dictionary<string, string?>
+            {
+                ["Payments:Bank:MerchantAccount"] = "TEST-ACCOUNT",
+                ["ConnectionStrings:Default"] = "Host=localhost;Database=unused;Username=u;Password=p",
+                ["Jwt:Issuer"] = "i",
+                ["Jwt:Audience"] = "a",
+                ["Jwt:Key"] = "abssc"
+            }));
+
+        Assert.Contains("Key", ex.Message);
     }
 }

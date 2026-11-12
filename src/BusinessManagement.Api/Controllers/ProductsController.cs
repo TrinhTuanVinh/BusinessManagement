@@ -1,6 +1,7 @@
 using BusinessManagement.Api.Contracts.Requests;
 using BusinessManagement.Application.Common;
 using BusinessManagement.Application.Products;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -30,6 +31,7 @@ public class ProductsController : ControllerBase
         => Ok(await _products.UpdateAsync(id, request.Name, request.Category, request.Price, ct));
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await _products.DeleteAsync(id, ct);

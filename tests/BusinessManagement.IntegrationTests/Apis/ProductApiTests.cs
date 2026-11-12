@@ -3,17 +3,18 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using BusinessManagement.Api.Contracts.Requests;
+using BusinessManagement.IntegrationTests.Helpers;
 using Microsoft.AspNetCore.Mvc.Testing;
 
-public class ProductApiTests : IClassFixture<WebApplicationFactory<Program>>
+public class ProductApiTests : IClassFixture<ApiFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly ApiFactory _factory;
     private readonly HttpClient _client;
 
-    public ProductApiTests(WebApplicationFactory<Program> factory)
+    public ProductApiTests(ApiFactory factory)
     {
         _factory = factory;
-        _client = factory.CreateClient();
+        _client = factory.CreateClientFor("Staff");
     }
     private static bool HasError(JsonElement json, string field)
     => json.GetProperty("errors").EnumerateObject()

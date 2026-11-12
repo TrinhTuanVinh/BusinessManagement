@@ -1,4 +1,5 @@
 
+using BusinessManagement.Application.Auth;
 using BusinessManagement.Application.Checkout.Discount;
 using BusinessManagement.Application.Checkout.Events;
 using BusinessManagement.Application.Checkout.Payments;
@@ -22,11 +23,12 @@ public static class DependencyInjection
         services.AddSingleton<IDiscountStrategy>(_ =>
             new PercentDiscount(1, 0.05m, c => IsCustomerType(c, "Student")));
         services.AddSingleton<IVoucherFactory, InMemoryVoucherFactory>();
-        services.AddScoped<PricingService>();
 
+        services.AddScoped<PricingService>();
         services.AddScoped<ProductService>();
         services.AddScoped<CustomerService>();
         services.AddScoped<ReportService>();
+        services.AddScoped<AuthService>();
 
         services.AddScoped<DiscountCalculator>();
         services.AddScoped<IOrderProcessedHandler, LogOrderHandler>();

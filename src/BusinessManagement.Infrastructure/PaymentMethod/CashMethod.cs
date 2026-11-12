@@ -10,9 +10,4 @@ public class CashMethod : IPaymentMethod
     {
         Console.WriteLine($"Cash received: {finalAmount}");
     }
-
-    public void Refund()
-    {
-        throw new NotSupportedException();
-    }
 }

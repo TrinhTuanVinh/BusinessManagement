@@ -9,6 +9,7 @@ using BusinessManagement.Infrastructure.OrderLog;
 using BusinessManagement.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using BusinessManagement.Application.Abstractions;
+using BusinessManagement.Application.Auth;
 
 namespace BusinessManagement.Infrastructure;
 
@@ -31,6 +32,19 @@ public static class DependencyInjection
         }
         services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+
+
+        var jwt = new JwtOptions
+        {
+            Issuer = configuration["Jwt:Issuer"] ?? "",
+            Audience = configuration["Jwt:Audience"] ?? "",
+            Key = configuration["Jwt:Key"] ?? "",
+            AccessTokenMinutes = int.TryParse(configuration["Jwt:AccessTokenMinutes"], out var minutes) ? minutes : 30
+        };
+        jwt.Validate();
+        services.AddSingleton(jwt);
+        services.AddSingleton<ITokenService, JwtTokenService>();
+        services.AddSingleton<BusinessManagement.Application.Auth.IPasswordHasher, IdentityPasswordHasher>();
 
         services.AddSingleton<LegacyBankGateway>();
         services.AddSingleton<IPaymentMethod>(sp => new LoggingPaymentMethod(
