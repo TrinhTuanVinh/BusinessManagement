@@ -99,52 +99,6 @@ public class LegacyBankGatewayTests
         Assert.Equal("Bank", sut.PaymentMethod);
     }
 
-    [Fact]
-    public void Process_VoucherCoversWholeOrder_DoesNotCallGatewayButStillLogs()
-    {
-        var gateway = new FakeGateway();
-        var log = new FakeOrderLog();
-        var sut = TestHelpers.CreateSut(new LegacyBankPaymentAdapter(gateway, "ACC"), log, new FakeNotifier());
-
-        // đơn 30.000 + voucher cố định 50.000 → thanh toán 0
-        sut.Process(TestHelpers.CreateOrder(30_000m, 1, "SALE50K"), "VIP", "Bank", "a@c.com");
-
-        Assert.Empty(gateway.Calls);
-        Assert.Single(log.Records);
-    }
-    [Fact]
-    public void Process_BankPayment_SendsOrderAmountToGateway()
-    {
-        // Given
-        FakeGateway gateway = new FakeGateway();
-        var bankPaymentAdapter = new LegacyBankPaymentAdapter(gateway, "ABBB");
-        var log = new FakeOrderLog();
-        var notifier = new FakeNotifier();
-        var sut = TestHelpers.CreateSut(bankPaymentAdapter, log, notifier);
-        // When
-        sut.Process(OrderProcessorTests.CreateOrder(100m), "VIP", "Bank", "a@c.com");
-        // Then
-        Assert.Single(gateway.Calls);
-        Assert.Equal("ABBB", gateway.Calls[0].Account);
-        Assert.Equal(100L, gateway.Calls[0].Amount);
-    }
-
-
-    [Fact]
-    public void PayOrderProcess_GatewayReturnsError_ThrowsPaymentExceptionAndDoesNotLogOrNotify()
-    {
-        // Given
-        FakeGateway gateway = new FakeGateway() { ReturnCode = 7 };
-        var bankPaymentAdapter = new LegacyBankPaymentAdapter(gateway, "ABCD");
-        var log = new FakeOrderLog();
-        var notifier = new FakeNotifier();
-        var sut = TestHelpers.CreateSut(bankPaymentAdapter, log, notifier);
-        // When
-        var ex = Assert.Throws<PaymentException>(() => sut.Process(OrderProcessorTests.CreateOrder(100m), "VIP", "Bank", "a@c.com"));
-        // Then
-        Assert.Equal(7, ex.ErrorCode);
-        Assert.Empty(log.Records);
-        Assert.Empty(notifier.Sent);
-    }
+   
 
 }

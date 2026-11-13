@@ -33,7 +33,6 @@ public static class DependencyInjection
         services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
-
         var jwt = new JwtOptions
         {
             Issuer = configuration["Jwt:Issuer"] ?? "",

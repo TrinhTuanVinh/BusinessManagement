@@ -40,7 +40,6 @@ public class CompositionRootTests
         using var provider = Build();
         using var scope = provider.CreateScope();
 
-        Assert.NotNull(scope.ServiceProvider.GetRequiredService<OrderProcessor>());
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<RefundProcessor>());
     }
 

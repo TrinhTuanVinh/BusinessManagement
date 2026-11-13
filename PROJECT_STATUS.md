@@ -229,3 +229,18 @@ Ngày 9: CRUD Products và Customers (DTO, validation, phân trang, lọc, sắp
 - 401 và 403 trả thân rỗng (chưa là ProblemDetails)
 - Đăng ký trả 409 khi email trùng: lộ email nào đã đăng ký (chấp nhận với công cụ nội bộ)
 - Chưa có quản lý người dùng và đổi mật khẩu
+
+## Quyết định (Ngày 12)
+- Tạo đơn giữ hàng ngay (Pending): trừ tồn bằng UPDATE có điều kiện (Stock >= qty) + kiểm tra số dòng; một transaction cho cả đơn
+- Hết hàng: ConflictException (409); khách/sản phẩm không có trong body: DomainException (422)
+- Các dòng sắp theo ProductId để mọi giao dịch khoá cùng thứ tự (tránh deadlock)
+- Huỷ đơn: cổng nguyên tử UPDATE Status WHERE Status <> 'Cancelled' (chống hoàn kho hai lần)
+- Quy tắc tồn kho nằm ở SQL cho đường đồng thời; Product.DecreaseStock còn cho luồng đơn lẻ; CHECK Stock >= 0 là chốt chặn cuối
+- Lựa chọn khác đã cân nhắc: optimistic (xmin + thử lại), pessimistic (SELECT ... FOR UPDATE)
+
+## Nợ kỹ thuật (thêm)
+- Giảm giá/voucher chưa tích hợp vào đơn; Order chưa lưu số tiền giảm → Ngày 13 (PricingService)
+- Chưa có thanh toán và Confirm; đơn Pending giữ hàng mãi nếu bị bỏ rơi (cần job huỷ đơn quá hạn)
+- Chưa có Idempotency-Key: gửi lại POST tạo thêm một đơn
+- OrderEventPublisher và handler chưa được ai dùng → Ngày 14 (OrderCreated)
+- Chưa có danh sách đơn và lọc theo khách

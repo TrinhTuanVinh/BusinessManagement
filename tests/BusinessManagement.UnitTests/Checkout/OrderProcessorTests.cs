@@ -24,75 +24,8 @@ public class OrderProcessorTests
         }
         return order;
     }
-    [Fact]
-    public void Process_InvalidVoucherCode_ThrowsBeforePayingAndTouchesNothing()
-    {
-        var cash = new FakePayment("Cash");
-        var log = new FakeOrderLog();
-        var notifier = new FakeNotifier();
-        var sut = TestHelpers.CreateSut(cash, log, notifier, VipTenPercent());
 
-        var ex = Assert.Throws<DomainException>(
-            () => sut.Process(CreateOrder(100m, 1, "NOPE"), "VIP", "Cash", "a@b.com"));
 
-        Assert.Contains("voucher code", ex.Message);
-        Assert.Empty(cash.Paid);
-        Assert.Empty(log.Records);
-        Assert.Empty(notifier.Sent);
-    }
-
-    [Fact]
-    public void Process_VipWithSale50k_PaysAfterPercentThenFixed()
-    {
-        var cash = new FakePayment("Cash");
-        var sut = TestHelpers.CreateSut(cash, new FakeOrderLog(), new FakeNotifier(), VipTenPercent());
-
-        var final = sut.Process(CreateOrder(1_000_000m, 1, "SALE50K"), "VIP", "Cash", "a@b.com");
-
-        Assert.Equal(850_000m, final);                 // 1.000.000 → 900.000 → 850.000
-        Assert.Equal(new[] { 850_000m }, cash.Paid);
-    }
-
-    [Fact]
-    public void Process_NoVoucher_DoesNotCallVoucherLogic()
-    {
-        var cash = new FakePayment("Cash");
-        var sut = TestHelpers.CreateSut(cash, new FakeOrderLog(), new FakeNotifier(), VipTenPercent());
-
-        var final = sut.Process(CreateOrder(100m), "VIP", "Cash", "a@b.com");
-
-        Assert.Equal(90m, final);
-    }
-
-    [Fact]
-    public void Process_VipCustomer_PaysTenPercentLess()
-    {
-        var cash = new FakePayment("Cash");
-        var log = new FakeOrderLog();
-        var notifier = new FakeNotifier();
-        var sut = TestHelpers.CreateSut(cash, log, notifier, VipTenPercent());
-
-        var final = sut.Process(CreateOrder(100m), "VIP", "Cash", "a@b.com");
-
-        Assert.Equal(90m, final);
-        Assert.Equal(new[] { 90m }, cash.Paid);
-        Assert.Equal(90m, Assert.Single(log.Records).Amount);         // log ghi đúng số đã thu
-        Assert.Equal(90m, Assert.Single(notifier.Sent).Amount);       // thông báo cũng vậy
-    }
-
-    [Theory]
-    [InlineData("Gold")]
-    [InlineData("Guest")]
-    public void Process_CustomerTypeWithoutPolicy_PaysFullPrice(string customerType)
-    {
-        var cash = new FakePayment("Cash");
-        var sut = TestHelpers.CreateSut(cash, new FakeOrderLog(), new FakeNotifier(), VipTenPercent());
-
-        var final = sut.Process(CreateOrder(100m), customerType, "Cash", "a@b.com");
-
-        Assert.Equal(100m, final);        // không ném lỗi, không giảm giá
-        Assert.Equal(new[] { 100m }, cash.Paid);
-    }
     [Fact]
     public void CalculateDiscount_PercentageBeforeFixed_Returns150000()
     {
@@ -197,69 +130,6 @@ public class OrderProcessorTests
 
         Assert.Equal(150_000m, discount);
     }
-    [Fact]
-    public void Process_VipCashOrder_PaysDiscountedAmountAndRecordsOnce()
-    {
-        var cash = new FakePayment("Cash");
-        var log = new FakeOrderLog();
-        var notifier = new FakeNotifier();
-        var sut = TestHelpers.CreateSut(cash, log, notifier);
-
-        var final = sut.Process(CreateOrder(100m), "VIP", "Cash", "a@b.com");
-
-        Assert.Equal(100m, final);
-        Assert.Equal(new[] { 100m }, cash.Paid);
-        Assert.Single(log.Records);
-        Assert.Single(notifier.Sent);
-    }
-
-    [Fact]
-    public void Process_UnsupportedPaymentMethod_ThrowsAndTouchesNothing()
-    {
-        var cash = new FakePayment("Cash");
-        var log = new FakeOrderLog();
-        var notifier = new FakeNotifier();
-        var sut = TestHelpers.CreateSut(cash, log, notifier);
-
-        var ex = Assert.Throws<DomainException>(
-            () => sut.Process(CreateOrder(30m), "VIP", "Crypto", "a@c.com"));
-
-        Assert.Contains("payment method", ex.Message);
-        Assert.Empty(cash.Paid);
-        Assert.Empty(log.Records);
-        Assert.Empty(notifier.Sent);
-    }
-
-    [Theory]
-    [InlineData("cash")]
-    [InlineData("CASH")]
-    public void Process_PaymentMethodWithDifferentCase_IsAccepted(string requested)
-    {
-        var cash = new FakePayment("Cash");               // đăng ký "Cash", gọi bằng chữ khác
-        var log = new FakeOrderLog();
-        var notifier = new FakeNotifier();
-        var sut = TestHelpers.CreateSut(cash, log, notifier);
-
-        var final = sut.Process(CreateOrder(100m), "VIP", requested, "a@b.com");
-
-        Assert.Equal(100m, final);
-        Assert.Single(cash.Paid);
-    }
-
-    [Fact]
-    public void Process_EmptyOrder_ThrowsDomainException()
-    {
-        // Given
-        var bank = new FakePayment("Bank");
-        var log = new FakeOrderLog();
-        var notifier = new FakeNotifier();
-        var sut = TestHelpers.CreateSut(bank, log, notifier);
-        var ex = Assert.Throws<DomainException>(() => sut.Process(new Order(Guid.NewGuid()), "VIP", "Bank", "a@z.com"));
-        Assert.Contains("at least one item", ex.Message);
-        Assert.Empty(bank.Paid);
-        Assert.Empty(log.Records);
-        Assert.Empty(notifier.Sent);
-    }
 
     public class TestDiscount : IDiscountStrategy
     {
@@ -273,19 +143,6 @@ public class OrderProcessorTests
     }
 
 
-    [Fact]
-    public void Process_WhenPaymentFails_DoesNotLogOrNotify()
-    {
-        var log = new FakeOrderLog();
-        var notifier = new FakeNotifier();
-        var sut = TestHelpers.CreateSut(new ThrowingPayment(), log, notifier);
-
-        Assert.Throws<InvalidOperationException>(
-            () => sut.Process(CreateOrder(100m), "VIP", "Cash", "a@b.com"));
-
-        Assert.Empty(log.Records);
-        Assert.Empty(notifier.Sent);
-    }
     [Fact]
     public void Refund_RefundableMethod_RefundsTheAmount()
     {

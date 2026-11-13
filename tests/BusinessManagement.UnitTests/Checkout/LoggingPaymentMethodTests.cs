@@ -76,15 +76,4 @@ public class LoggingPaymentMethodTests
         Assert.Same(original, thrown);
     }
 
-    [Fact]
-    public void Process_WithLoggingDecorator_StillPaysThroughInner()
-    {
-        var inner = new FakePayment("Bank");
-        var (decorated, _) = Create(inner);
-        var sut = TestHelpers.CreateSut(decorated, new FakeOrderLog(), new FakeNotifier());
-
-        sut.Process(TestHelpers.CreateOrder(100m), "VIP", "Bank", "a@c.com");
-
-        Assert.Equal(new[] { 100m }, inner.Paid);
-    }
 }

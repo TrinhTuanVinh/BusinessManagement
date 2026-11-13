@@ -34,7 +34,6 @@ public static class DependencyInjection
         services.AddScoped<IOrderProcessedHandler, LogOrderHandler>();
         services.AddScoped<IOrderProcessedHandler, NotifyOrderHandler>();
         services.AddScoped<OrderEventPublisher>();
-        services.AddScoped<OrderProcessor>();
         services.AddScoped<RefundProcessor>();
 
         return services;
