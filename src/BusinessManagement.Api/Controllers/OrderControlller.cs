@@ -1,3 +1,4 @@
+using BusinessManagement.Application.Common;
 using BusinessManagement.Application.Orders;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,7 +10,7 @@ public class OrdersController(OrderService orders) : ControllerBase
     public async Task<ActionResult<OrderDto>> Create(CreateOrderRequest request, CancellationToken ct)
     {
         var lines = request.Items.Select(i => new OrderLine(i.ProductId, i.Quantity)).ToList();
-        var dto = await orders.CreateAsync(request.CustomerId, lines, ct);
+        var dto = await orders.CreateAsync(request.CustomerId, lines, request.VoucherCode, ct);
         return CreatedAtAction(nameof(Get), new { id = dto.Id }, dto);
     }
 
@@ -20,4 +21,9 @@ public class OrdersController(OrderService orders) : ControllerBase
     [HttpPost("{id:guid}/cancel")]
     public async Task<ActionResult<OrderDto>> Cancel(Guid id, CancellationToken ct)
         => Ok(await orders.CancelAsync(id, ct));
+
+    [HttpGet]
+    public async Task<ActionResult<PageResult<OrderSummaryDto>>> GetList([FromQuery] OrderListRequest q, CancellationToken ct)
+   => Ok(await orders.ListAsync(q, ct));
+
 }

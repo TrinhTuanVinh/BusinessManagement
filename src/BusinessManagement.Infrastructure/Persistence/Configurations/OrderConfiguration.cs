@@ -8,7 +8,10 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
 {
     public void Configure(EntityTypeBuilder<Order> b)
     {
-        b.ToTable("Orders");
+        b.ToTable("Orders", t => t.HasCheckConstraint("ck_orders_discount_nonneg", "\"DiscountAmount\" >= 0"));
+        b.Property(o => o.DiscountAmount).HasPrecision(18, 2);
+        b.Ignore(o => o.Subtotal);
+        b.HasIndex(o => o.CreatedAt);
         b.HasKey(o => o.Id);
         b.Property(o => o.Id).ValueGeneratedNever();
         b.Property(o => o.Status).HasConversion<string>().HasMaxLength(20).IsRequired();

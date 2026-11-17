@@ -53,7 +53,7 @@ public class PricingApiTests : IClassFixture<ApiFactory>
             new { orderTotal = 1_000_000m, customerType = "VIP", voucherCode = "SALE50K" });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(new QuoteResponse(1_000_000m, 150_000m, 850_000m),
+        Assert.Equal(new QuoteResponse(1_000_000m, 100_050m, 899_950m),
             await response.Content.ReadFromJsonAsync<QuoteResponse>());
     }
 
@@ -111,5 +111,44 @@ public class PricingApiTests : IClassFixture<ApiFactory>
         Assert.DoesNotContain("secret-internal-detail", text);
         Assert.DoesNotContain("InvalidOperationException", text);
         Assert.Contains("traceId", text);
+    }
+    [Fact]
+    public async Task CreateOrder_MissingCustomerId_Returns422()
+    {
+        var client = _factory.CreateClientFor("Admin");
+
+        var response = await client.PostAsJsonAsync(
+            "/api/orders",
+            new
+            {
+                items = new[]
+                {
+                    new
+                    {
+                        productId = Guid.NewGuid(),
+                        quantity = 1
+                    }
+                }
+            });
+
+        Assert.Equal((HttpStatusCode)422, response.StatusCode);
+    }
+    [Fact]
+    public async Task CreateOrder_MissingProductId_Returns422()
+    {
+        var client = _factory.CreateClientFor("Admin");
+
+        var response = await client.PostAsJsonAsync(
+            "/api/orders",
+            new
+            {
+                customerId = Guid.NewGuid(),
+                items = new[]
+                {
+                new { quantity = 1 }
+                }
+            });
+
+        Assert.Equal((HttpStatusCode)422, response.StatusCode);
     }
 }

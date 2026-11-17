@@ -10,10 +10,11 @@ public class Order : BaseEntity
     public Customer? Customer { get; private set; }
     public string? VoucherCode { get; private set; }
     private readonly List<OrderItem> _items = new();
-    public decimal Total => _items.Sum(
-        x => x.Quantity * x.UnitPrice
-    );
     public IReadOnlyCollection<OrderItem> Items => _items.AsReadOnly();
+    public decimal DiscountAmount { get; private set; }
+    public decimal Subtotal => _items.Sum(x => x.Quantity * x.UnitPrice);
+    public decimal Total => Subtotal - DiscountAmount;        // thay thuộc tính Total cũ
+
     public Order(Guid customerId)
     {
         if (customerId == Guid.Empty)
@@ -81,6 +82,14 @@ public class Order : BaseEntity
         if (Status != OrderStatus.Pending) throw new DomainException("Order must be pending!");
         if (string.IsNullOrWhiteSpace(code)) throw new DomainException("Voucher code is required.");
         VoucherCode = code.Trim().ToUpperInvariant();
+        Touch();
+    }
+    public void ApplyDiscount(decimal amount)
+    {
+        if (Status != OrderStatus.Pending) throw new DomainException("Order must be pending!");
+        if (amount < 0) throw new DomainException("Discount cannot be negative.");
+        if (amount > Subtotal) throw new DomainException("Discount cannot exceed the order subtotal.");
+        DiscountAmount = amount;
         Touch();
     }
 }

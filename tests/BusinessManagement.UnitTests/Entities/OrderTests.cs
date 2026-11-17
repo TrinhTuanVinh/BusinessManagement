@@ -117,4 +117,53 @@ public class OrderTests
 
         Assert.Equal(19m, order.Total);           // chính là câu hỏi 3
     }
+
+    [Fact]
+    public void ApplyDiscount_Success_ReturnTotal()
+    {
+        // Given
+        var product = new Product("HP", "Laptop", 20m, 10);
+        var order = new Order(Guid.NewGuid());
+        order.AddItem(product, 2);
+
+        // When
+        order.ApplyDiscount(5m);
+        // Then
+        Assert.Equal(35m, order.Total);
+    }
+
+    [Fact]
+    public void ApplyDiscount_Negative_ReturnException()
+    {
+        // Given
+        var product = new Product("HP", "Laptop", 20m, 10);
+        var order = new Order(Guid.NewGuid());
+        order.AddItem(product, 2);
+
+        Assert.Throws<DomainException>(() => order.ApplyDiscount(-5m));
+    }
+
+    [Fact]
+    public void ApplyDiscount_OverSubTotal_ReturnException()
+    {
+        // Given
+        var product = new Product("HP", "Laptop", 20m, 10);
+        var order = new Order(Guid.NewGuid());
+        order.AddItem(product, 1);
+
+        Assert.Throws<DomainException>(() => order.ApplyDiscount(25m));
+    }
+
+    [Fact]
+    public void ApplyDiscount_Confirm_ReturnDiscountAmountNotChange()
+    {
+        // Given
+        var product = new Product("HP", "Laptop", 20m, 10);
+        var order = new Order(Guid.NewGuid());
+        order.AddItem(product, 1);
+        order.Confirm();
+        var ex = Assert.Throws<DomainException>(() => order.ApplyDiscount(10m));
+
+        Assert.Equal(20, order.Total);
+    }
 }

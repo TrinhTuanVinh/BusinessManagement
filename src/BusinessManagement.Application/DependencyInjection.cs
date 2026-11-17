@@ -6,6 +6,7 @@ using BusinessManagement.Application.Checkout.Payments;
 using BusinessManagement.Application.Checkout.Ports;
 using BusinessManagement.Application.Checkout.Pricing;
 using BusinessManagement.Application.Customers;
+using BusinessManagement.Application.Orders;
 using BusinessManagement.Application.Products;
 using BusinessManagement.Application.Reports;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,6 +26,7 @@ public static class DependencyInjection
         services.AddSingleton<IVoucherFactory, InMemoryVoucherFactory>();
 
         services.AddScoped<PricingService>();
+        services.AddScoped<OrderService>();
         services.AddScoped<ProductService>();
         services.AddScoped<CustomerService>();
         services.AddScoped<ReportService>();

@@ -10,6 +10,8 @@ using BusinessManagement.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using BusinessManagement.Application.Abstractions;
 using BusinessManagement.Application.Auth;
+using BusinessManagement.Application.Messaging;
+using BusinessManagement.Infrastructure.Messaging;
 
 namespace BusinessManagement.Infrastructure;
 
@@ -45,6 +47,18 @@ public static class DependencyInjection
         services.AddSingleton<ITokenService, JwtTokenService>();
         services.AddSingleton<BusinessManagement.Application.Auth.IPasswordHasher, IdentityPasswordHasher>();
 
+        var rabbit = new RabbitMqOptions
+        {
+            Host = configuration["RabbitMq:Host"] ?? "",
+            Port = int.TryParse(configuration["RabbitMq:Port"], out var rabbitPort) ? rabbitPort : 5672,
+            UserName = configuration["RabbitMq:UserName"] ?? "",
+            Password = configuration["RabbitMq:Password"] ?? "",
+            VirtualHost = configuration["RabbitMq:VirtualHost"] ?? "/"
+        };
+        rabbit.Validate();
+        services.AddSingleton(rabbit);
+        services.AddSingleton<IEventBus, RabbitMqEventBus>();
+        
         services.AddSingleton<LegacyBankGateway>();
         services.AddSingleton<IPaymentMethod>(sp => new LoggingPaymentMethod(
             new LegacyBankPaymentAdapter(sp.GetRequiredService<LegacyBankGateway>(), merchantAccount),

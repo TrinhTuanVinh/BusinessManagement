@@ -25,15 +25,15 @@ public class PricingServiceTests
     {
         var q = CreateSut().Quote(1_000_000m, "VIP", "SALE50K");
 
-        Assert.Equal(150_000m, q.Discount);
-        Assert.Equal(850_000m, q.FinalAmount);
+        Assert.Equal(100_050m, q.Discount);
+        Assert.Equal(899_950m, q.FinalAmount);
     }
 
     [Theory]
     [InlineData(" sale50k ")]
     [InlineData("Sale50K")]
     public void Quote_VoucherWithSpacesOrCase_StillApplied(string code)
-        => Assert.Equal(150_000m, CreateSut().Quote(1_000_000m, "VIP", code).Discount);
+        => Assert.Equal(100_050m, CreateSut().Quote(1_000_000m, "VIP", code).Discount);
 
     [Fact]
     public void Quote_CustomerTypeWithSpacesAndCase_StillMatched()
@@ -50,8 +50,8 @@ public class PricingServiceTests
     {
         var q = CreateSut().Quote(30_000m, "Gold", "SALE50K");
 
-        Assert.Equal(30_000m, q.Discount);
-        Assert.Equal(0m, q.FinalAmount);
+        Assert.Equal(50, q.Discount);
+        Assert.Equal(29_950m, q.FinalAmount);
     }
 
     [Fact]

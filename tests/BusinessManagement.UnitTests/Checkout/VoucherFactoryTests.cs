@@ -27,6 +27,6 @@ public class VoucherFactoryTests
 
         Assert.True(voucher.IsApplicable(new("VIP", "SALE50K", 100_000m)));
         Assert.False(voucher.IsApplicable(new("VIP", "SALE10", 100_000m)));
-        Assert.Equal(50_000m, voucher.CalculateDiscount(new("VIP", "SALE50K", 100_000m)));
+        Assert.Equal(50m, voucher.CalculateDiscount(new("VIP", "SALE50K", 100_000m)));
     }
 }

@@ -73,6 +73,10 @@ namespace BusinessManagement.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -87,9 +91,14 @@ namespace BusinessManagement.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedAt");
+
                     b.HasIndex("CustomerId", "CreatedAt");
 
-                    b.ToTable("Orders", (string)null);
+                    b.ToTable("Orders", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_orders_discount_nonneg", "\"DiscountAmount\" >= 0");
+                        });
                 });
 
             modelBuilder.Entity("BusinessManagement.Domain.Entities.OrderItem", b =>

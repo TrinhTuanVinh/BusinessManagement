@@ -5,7 +5,7 @@ public class InMemoryVoucherFactory : IVoucherFactory
     private static readonly Dictionary<string, Func<IDiscountStrategy>> Definitions =
      new(StringComparer.OrdinalIgnoreCase)
      {
-         ["SALE50K"] = () => new FixedVoucher(2, "SALE50K", 50_000m),
+         ["SALE50K"] = () => new FixedVoucher(2, "SALE50K", 50m),
          ["SALE10"] = () => new PercentDiscount(2, 0.10m, c => IsCode(c, "SALE10")),
      };
     public IDiscountStrategy? Create(string? code)

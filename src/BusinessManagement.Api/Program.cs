@@ -5,6 +5,7 @@ using BusinessManagement.Application.Auth;
 using BusinessManagement.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -42,9 +43,9 @@ builder.Services.AddControllers().AddJsonOptions(o => o.JsonSerializerOptions.Co
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
-
 var app = builder.Build();
 
+app.UseMiddleware<RequestIdMiddleware>();
 app.UseExceptionHandler();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

@@ -15,6 +15,23 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+  rabbitmq:
+      image: rabbitmq:4-management
+      container_name: bm-rabbit
+      environment:
+        RABBITMQ_DEFAULT_USER: "${RABBITMQ_USER:-app}"
+        RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}"
+      ports:
+        - "5672:5672"
+        - "15672:15672"
+      volumes:
+        - bm-rabbitdata:/var/lib/rabbitmq
+      healthcheck:
+        test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+        interval: 10s
+        timeout: 5s
+        retries: 10
 
 volumes:
   bm-pgdata:
+  bm-rabbitdata:

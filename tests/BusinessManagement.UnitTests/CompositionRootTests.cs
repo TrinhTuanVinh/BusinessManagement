@@ -18,7 +18,10 @@ public class CompositionRootTests
                 ["ConnectionStrings:Default"] = "Host=localhost;Database=unused;Username=u;Password=p",
                 ["Jwt:Issuer"] = "i",
                 ["Jwt:Audience"] = "a",
-                ["Jwt:Key"] = new string('k', 40)
+                ["Jwt:Key"] = new string('k', 40),
+                ["RabbitMq:Host"] = "c",
+                ["RabbitMq:UserName"] = "d",
+                ["RabbitMq:Password"] = "e"
             })
             .Build();
 
@@ -95,6 +98,24 @@ public class CompositionRootTests
                 ["Jwt:Audience"] = "a",
                 ["Jwt:Key"] = "abssc"
             }));
+
+        Assert.Contains("Key", ex.Message);
+    }
+
+    [Fact]
+    public void AddInfrastructure_MissingRabbitPassword_FailsFast()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+           Build(new Dictionary<string, string?>
+           {
+               ["Payments:Bank:MerchantAccount"] = "TEST-ACCOUNT",
+               ["ConnectionStrings:Default"] = "Host=localhost;Database=unused;Username=u;Password=p",
+               ["Jwt:Issuer"] = "i",
+               ["Jwt:Audience"] = "a",
+               ["Jwt:Key"] = "abssc",
+               ["RabbitMq:Host"] = "c",
+               ["RabbitMq:UserName"] = "d",
+           }));
 
         Assert.Contains("Key", ex.Message);
     }
