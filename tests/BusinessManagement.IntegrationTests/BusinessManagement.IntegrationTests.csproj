@@ -31,6 +31,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\BusinessManagement.Api\BusinessManagement.Api.csproj" />
     <ProjectReference Include="..\..\src\BusinessManagement.Infrastructure\BusinessManagement.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\BusinessManagement.Worker\BusinessManagement.Worker.csproj" />
   </ItemGroup>
 
 </Project>

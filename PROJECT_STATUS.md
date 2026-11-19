@@ -1,6 +1,6 @@
 # PROJECT STATUS
 
-> Cập nhật lần cuối: Ngày 12 (173 test xanh)
+> Cập nhật lần cuối: Ngày 15 hoàn tất (212 test xanh)
 
 ## 1. Mục tiêu và phạm vi MVP
 Business Management API (ASP.NET Core): Auth, Products, Customers, Orders, Payments, RabbitMQ worker.
@@ -13,10 +13,14 @@ Tiến độ MVP:
 - [x] Auth: đăng ký, đăng nhập, JWT, phân quyền theo vai trò
 - [x] CRUD Products, Customers (phân trang, lọc, sắp xếp)
 - [x] Orders: tạo đơn giữ hàng trong transaction, chống bán vượt tồn, huỷ đơn hoàn kho
+- [x] Voucher/giảm giá lưu trong đơn, danh sách đơn có lọc và phân trang
+- [x] Logging có ngữ cảnh (`X-Request-Id`, structured logging)
 - [x] Báo cáo top khách (2 truy vấn, đã đo bằng EXPLAIN)
-- [ ] Voucher/giảm giá lưu trong đơn, danh sách đơn, logging có ngữ cảnh (Ngày 13)
+- [x] RabbitMQ: publish `OrderCreated` sau commit (Ngày 14)
+- [x] Worker: consumer tạo thông báo, `ack` thủ công, DLQ (Ngày 15, hoàn tất)
+- [ ] Idempotent consumer, thử lại có độ trễ (Ngày 16)
+- [ ] Transactional Outbox (Ngày 17)
 - [ ] Payments và Confirm đơn
-- [ ] RabbitMQ + Worker: retry, DLQ, idempotent consumer (Ngày 14–17)
 - [ ] Docker Compose đầy đủ, README, CI (Ngày 18–19)
 
 ## 2. Công nghệ và phiên bản
@@ -25,21 +29,24 @@ Tiến độ MVP:
 - EF Core 10 + `Npgsql.EntityFrameworkCore.PostgreSQL` 10.0.3
 - PostgreSQL 18 (Docker Compose, cổng 5434)
 - Xác thực: `JwtBearer` + `Microsoft.IdentityModel.JsonWebTokens`; băm mật khẩu bằng `PasswordHasher` của ASP.NET Core Identity (PBKDF2)
-- xUnit 2.9.3, Testcontainers (PostgreSql)
-- RabbitMQ.Client 7.x, Worker
+- RabbitMQ 4 (image `rabbitmq:4-management`; AMQP 5672, giao diện quản lý 15672) + `RabbitMQ.Client` 7.x (API bất đồng bộ)
+- xUnit 2.9.3, Testcontainers (PostgreSql, RabbitMq)
 
 ## 3. Cấu trúc thư mục (đối chiếu với thực tế)
 ```
 src/
-  BusinessManagement.Domain/          Common, Entities (Product, Customer, Order, OrderItem, OrderStatus, User)
+  BusinessManagement.Domain/          Common, Entities (Product, Customer, Order, OrderItem, OrderStatus, User, Notification)
   BusinessManagement.Application/     Abstractions (IAppDbContext), Auth, Common, Customers, Products, Orders, Reports,
+                                      Messaging (OrderCreated, IEventBus, RoutingKeys), Notifications (IOrderCreatedHandler),
                                       Checkout/{Discount,Events,Payments,Ports,Pricing}, DependencyInjection.cs
-  BusinessManagement.Infrastructure/  Persistence/{Configurations,Migrations}, Auth (hasher, JWT), cài đặt thanh toán/thông báo/log đơn,
-                                      DependencyInjection.cs
-  BusinessManagement.Api/             Controllers, Contracts/{Requests,Responses}, ExceptionHandling, Program.cs
+  BusinessManagement.Infrastructure/  Persistence/{Configurations,Migrations}, Auth (hasher, JWT), Messaging (RabbitMqEventBus,
+                                      RabbitMqOptions, RabbitMqTopology), cài đặt thanh toán/thông báo/log đơn,
+                                      DependencyInjection.cs (AddInfrastructure, AddPersistence, AddMessaging)
+  BusinessManagement.Api/             Controllers, Contracts/{Requests,Responses}, ExceptionHandling, Middleware (RequestIdMiddleware), Program.cs
+  BusinessManagement.Worker/          OrderCreatedConsumer (BackgroundService), WorkerServiceExtensions
 tests/
   BusinessManagement.UnitTests/        Domain + Application (logic thuần)
-  BusinessManagement.IntegrationTests/ CompositionRoot, Api (WebApplicationFactory), Services và Persistence (Testcontainers)
+  BusinessManagement.IntegrationTests/ CompositionRoot, Api (WebApplicationFactory), Services, Persistence, RabbitMQ (Testcontainers)
 learning/                              Code học (Day01, Day04, Learning.Tests), ngoài solution sản phẩm
 scripts/                               seed-dev.sql (dữ liệu thử cho DB dev, không dùng cho test)
 ```
@@ -60,6 +67,9 @@ scripts/                               seed-dev.sql (dữ liệu thử cho DB de
 | 10 | SQL JOIN/GROUP BY, index, EXPLAIN, N+1 | ✅ |
 | 11 | Đăng ký, đăng nhập, JWT, phân quyền | ✅ |
 | 12 | Tạo đơn, transaction, chống bán vượt tồn | ✅ |
+| 13 | Voucher trong đơn, danh sách đơn, logging có ngữ cảnh | ✅ |
+| 14 | Message queue, RabbitMQ, publish `OrderCreated` | ✅ (208 test xanh) |
+| 15 | Worker làm consumer, `ack`, DLQ | 🔄 chờ xác nhận test chạy xanh |
 
 API hiện có:
 
@@ -72,7 +82,7 @@ API hiện có:
 | Products | `GET`, `POST`, `PUT /api/products`, `GET /api/products/{id}` | Đăng nhập |
 | | `DELETE /api/products/{id}` | Admin |
 | Customers | `GET`, `POST`, `PUT /api/customers`, `GET /api/customers/{id}`, `POST .../deactivate`, `POST .../activate` | Đăng nhập |
-| Orders | `POST /api/orders`, `GET /api/orders/{id}`, `POST /api/orders/{id}/cancel` | Đăng nhập |
+| Orders | `POST /api/orders` (có `voucherCode`), `GET /api/orders` (lọc khách, trạng thái, khoảng ngày; phân trang), `GET /api/orders/{id}`, `POST /api/orders/{id}/cancel` | Đăng nhập |
 | Báo cáo | `GET /api/reports/top-customers` | Admin |
 
 ## 5. Quyết định kiến trúc và lý do
@@ -85,19 +95,20 @@ API hiện có:
 | Mỗi layer có `DependencyInjection.cs` riêng; `IPaymentMethod` mỗi khoá đúng một implementation | Composition root gọn; trùng khoá làm `ToDictionary` ném lỗi |
 | Lifetime: Singleton chỉ cho thứ không trạng thái và không phụ thuộc Scoped; còn lại Scoped | Tránh captive dependency. `IVoucherFactory` phải đổi sang Scoped khi đọc DB |
 | Bật `ValidateScopes` + `ValidateOnBuild` trong test composition | Bắt lỗi lifetime ngoài môi trường Development |
-| Cấu hình thiếu hoặc yếu (MerchantAccount, connection string, `Jwt:Key` < 32 byte) thì app không khởi động | Fail-fast tốt hơn chạy rồi lỗi ngầm |
+| Cấu hình thiếu hoặc yếu (MerchantAccount, connection string, `Jwt:Key` < 32 byte, RabbitMQ) thì app không khởi động | Fail-fast tốt hơn chạy rồi lỗi ngầm |
+| Tách `AddPersistence` và `AddMessaging` khỏi `AddInfrastructure` | Worker chỉ cần DB và RabbitMQ, không cần JWT hay thanh toán |
 
 ### Domain
 | Quyết định | Lý do |
 |---|---|
 | `Order.AddItem` không trừ kho | Trừ kho cần transaction và DB; làm ở `OrderService` |
-| `OrderItem.UnitPrice` sao chép giá lúc thêm | Đổi giá sau đó không ảnh hưởng đơn cũ |
+| `OrderItem.UnitPrice` và `Order.DiscountAmount`/`VoucherCode` chụp tại thời điểm đặt | Đổi giá hoặc voucher sau đó không làm đổi đơn cũ (hoá đơn và kế toán) |
 | Tiền dùng `decimal`, DB `numeric(18,2)`, làm tròn `AwayFromZero` | Tránh sai số nhị phân; làm tròn banker's mặc định của C# cho kết quả bất ngờ |
 | Id dùng `Guid.CreateVersion7()` | Có thứ tự theo thời gian, ít phân mảnh index |
 | Ngừng khách bằng `IsActive`, không xoá cứng | Giữ lịch sử đơn (FK RESTRICT) |
 | `Order.AddItem`: không tối ưu bằng dictionary với đơn nhỏ | O(k) mỗi lần thêm, O(n²) cho n lần, nhưng đơn thường 1–20 dòng; dictionary tốn bộ nhớ và phải giữ đồng bộ. Đo trước khi sửa |
 
-### Giảm giá, thanh toán, sự kiện
+### Giảm giá, thanh toán, sự kiện trong process
 | Quyết định | Lý do |
 |---|---|
 | `IDiscountStrategy` có `IsApplicable` và `CalculateDiscount`; Priority nhỏ áp dụng trước (1 = theo loại khách, 2 = voucher) | Tách "áp dụng cho ai" khỏi "giảm bao nhiêu"; thứ tự có test khoá (150.000 so với 145.000) |
@@ -129,6 +140,8 @@ API hiện có:
 | `DbUpdateException` nhóm `23xxx` → 409, body không chứa tên constraint | `RESTRICT` là `23001`, unique là `23505`, FK là `23503` |
 | `UseExceptionHandler` đứng trước các middleware nó cần bảo vệ | Handler chỉ bắt lỗi từ phía sau nó |
 | Attribute validation của DTO record đặt ở **tham số constructor**, không dùng `[property: ...]` | MVC ném `InvalidOperationException` với `property:` |
+| Guid bắt buộc kiểm tra bằng `[NotEmptyGuid]` ở DTO (thiếu hoặc `0000…` là 400) | `[Required]` vô tác dụng với kiểu giá trị không-nullable (thiếu → `Guid.Empty`, không phải null) |
+| Action `GET` dùng `[FromQuery]` với lớp request riêng (`ProductListRequest`, `OrderListRequest`) | Kiểu phức hợp mặc định bind từ thân request; lớp request cho validation và `DateTimeOffset` → UTC |
 | `POST /api/pricing/quote` trả 200 | Chỉ tính, không tạo tài nguyên |
 | Phân trang offset, `pageSize` ≤ 100, sắp xếp theo whitelist, luôn có `ThenBy(Id)` | An toàn, không lặp/bỏ sót dòng giữa các trang |
 | `PUT` không sửa tồn kho; ngừng/kích hoạt khách bằng `POST .../deactivate` và `.../activate` (không có `DELETE`) | Tồn kho cần phép tính nguyên tử; giữ lịch sử đơn |
@@ -156,17 +169,55 @@ API hiện có:
 | Quy tắc tồn kho nằm ở SQL cho đường đồng thời; `Product.DecreaseStock` còn cho luồng đơn lẻ; `CHECK Stock >= 0` là chốt chặn cuối | Ba lớp bảo vệ |
 | Đã cân nhắc: optimistic (token phiên bản, thử lại) và pessimistic (`SELECT ... FOR UPDATE`) | Chỉ dùng khi luật phức tạp không viết được thành một `UPDATE` |
 
+### Voucher, danh sách đơn, logging (Ngày 13)
+| Quyết định | Lý do |
+|---|---|
+| Voucher kiểm tra TRƯỚC transaction giữ hàng | Mã sai không chạm kho; transaction (đang giữ khoá dòng) ngắn hơn |
+| `Total = Subtotal - DiscountAmount`; `Order.ApplyDiscount` kiểm tra không âm và không vượt `Subtotal` | Đơn tự nhất quán |
+| Danh sách đơn: một truy vấn đếm + một truy vấn trang; `Sum` và `Count` trong `Select` được EF dịch thành một câu SQL, không phải N+1 | Khoá bằng test đếm truy vấn |
+| `X-Request-Id`: nhận từ client chỉ khi khớp `^[A-Za-z0-9_-]{8,64}$`, nếu không sinh mới; có trong log (scope), header phản hồi và body lỗi | Chống log injection và log tràn; tra log theo một mã |
+| Log dùng message template, chỉ ghi Id (không email, token, mật khẩu); log "đã tạo đơn" ghi sau commit; môi trường không phải Development ghi JSON | Trường lọc được; commit lỗi thì không báo đã tạo |
+
+### Messaging (Ngày 14)
+| Quyết định | Lý do |
+|---|---|
+| Exchange `topic` bền vững `bm.events`; queue `bm.orders.created` durable, gắn DLX `bm.events.dlx` → `bm.orders.created.dlq` | Khai báo DLX từ đầu vì tham số queue không đổi được sau khi tạo |
+| Tin persistent + publisher confirm; `mandatory = true`; một kết nối dùng chung, mỗi lần publish một channel | Không mất tin khi broker khởi động lại; tin sai routing key không biến mất im lặng |
+| Publish sau commit; lỗi publish chỉ ghi log Error, không làm hỏng đơn; timeout 5 giây, không dùng `ct` của request | Đơn đã commit rồi thì khách ngắt kết nối không được làm mất sự kiện |
+| Sự kiện chỉ chứa Id và số tiền (không email); `EventId` để consumer chống trùng | Không rò dữ liệu cá nhân; chuẩn bị idempotency |
+| Topology khai báo ở cả publisher | Exchange không có queue nào gắn thì tin bị bỏ; không để rơi khi Worker chưa chạy |
+| Đã quan sát: tắt RabbitMQ → `POST /api/orders` vẫn 201, log `Failed to publish OrderCreated` (`BrokerUnreachableException`); tin của đơn đó không được gửi lại | Dual write: nền tảng cho Transactional Outbox (Ngày 17) |
+
+### Worker và consumer (Ngày 15, hoàn tất)
+| Quyết định | Lý do |
+|---|---|
+| Worker là dự án riêng; chỉ đăng ký DB và RabbitMQ (`WorkerServiceExtensions`) | Không kéo JWT/thanh toán vào tiến trình nền |
+| `autoAck = false`; `ack` sau khi xử lý xong; prefetch 10; một scope DI cho mỗi tin | Tin chỉ bị xoá khi xử lý xong; `DbContext` là Scoped, `BackgroundService` là Singleton |
+| Tin không đọc được (JSON hỏng) hoặc handler lỗi: `nack(requeue: false)` → DLQ | Tin độc không được lặp vô hạn |
+| Tắt êm: không `ack` tin đang xử lý; broker giao lại | Không mất tin khi triển khai lại |
+| Kết nối lần đầu thất bại thì thử lại sau 5 giây | Tự khôi phục của client chỉ chạy sau lần kết nối đầu tiên |
+| `Notifications` không có unique trên `OrderId` (chủ ý) | Test ghi lại hành vi "tin trùng ra hai thông báo"; Ngày 16 chống trùng |
+
 ## 6. Database schema và migrations
 | Bảng | Ràng buộc |
 |---|---|
 | Customers | PK; UNIQUE(Email) |
 | Products | PK; CHECK Price >= 0; CHECK Stock >= 0; index Category, Name |
-| Orders | PK; FK CustomerId → Customers (RESTRICT); index (CustomerId, CreatedAt) |
+| Orders | PK; FK CustomerId → Customers (RESTRICT); DiscountAmount `numeric(18,2)` CHECK >= 0; VoucherCode `varchar(30)`; index (CustomerId, CreatedAt); index CreatedAt |
 | OrderItems | PK; FK OrderId → Orders (CASCADE, NOT NULL); FK ProductId → Products (RESTRICT); UNIQUE(OrderId, ProductId); CHECK Quantity > 0; CHECK UnitPrice >= 0 |
 | Users | PK; UNIQUE(Email); Role lưu dạng chuỗi |
+| Notifications | PK; index OrderId (không unique, chủ ý) |
 
-Migrations: `InitialCreate`, `RequireOrderItemOrderId`, `AddUsers`.
+Migrations: `InitialCreate`, `RequireOrderItemOrderId`, `AddUsers`, `AddOrderDiscount`, `AddNotifications`.
 Kiểu cột: `uuid`, `numeric(18,2)`, `timestamp with time zone` (luôn UTC; PostgreSQL lưu đến micro-giây nên cắt chữ số cuối của `DateTime` .NET), enum lưu dạng chuỗi.
+
+### Topology RabbitMQ
+| Thành phần | Cấu hình |
+|---|---|
+| Exchange `bm.events` | `topic`, durable |
+| Queue `bm.orders.created` | durable; `x-dead-letter-exchange = bm.events.dlx`, `x-dead-letter-routing-key = order.created`; binding `order.created` |
+| Exchange `bm.events.dlx` | `direct`, durable |
+| Queue `bm.orders.created.dlq` | durable; binding `order.created` trên DLX |
 
 ### Thí nghiệm index (Ngày 10, 100k đơn, 300k dòng hàng)
 | Thí nghiệm | Kết quả |
@@ -177,43 +228,50 @@ Kiểu cột: `uuid`, `numeric(18,2)`, `timestamp with time zone` (luôn UTC; Po
 | `lower(Name) LIKE '%x%'` | `Seq Scan`, ước lượng 1 so với thực tế 111; B-tree không dùng được cho wildcard đầu; hướng xử lý: `pg_trgm` |
 | Báo cáo top khách | 441 ms; `COUNT(DISTINCT)` gây `Sort` external merge ra đĩa 15 MB; chấp nhận được ở quy mô này |
 
-- `IX_Orders_CreatedAt`: giữ, thêm vào migration ở Ngày 13 (đã đo ~50 lần).
-- `ReportService` luôn đúng 2 truy vấn, khoá bằng test đếm truy vấn (`DbCommandInterceptor`).
+- `ReportService` và danh sách đơn luôn đúng 2 truy vấn, khoá bằng test đếm truy vấn (`DbCommandInterceptor`).
 
 ## 7. Cách chạy
 ```
-docker compose up -d                 # cần file .env (POSTGRES_USER, POSTGRES_PASSWORD), không commit
+docker compose up -d                 # PostgreSQL + RabbitMQ; cần file .env (POSTGRES_USER, POSTGRES_PASSWORD,
+                                     # RABBITMQ_USER, RABBITMQ_PASSWORD), không commit
 dotnet user-secrets set "ConnectionStrings:Default" "<chuỗi kết nối>" --project src/BusinessManagement.Api
 dotnet user-secrets set "Payments:Bank:MerchantAccount" "<số giả>" --project src/BusinessManagement.Api
 dotnet user-secrets set "Jwt:Key" "<chuỗi ngẫu nhiên >= 32 byte>" --project src/BusinessManagement.Api
+dotnet user-secrets set "RabbitMq:Password" "<mật khẩu trong .env>" --project src/BusinessManagement.Api
 dotnet ef database update --project src/BusinessManagement.Infrastructure --startup-project src/BusinessManagement.Api
 dotnet run --project src/BusinessManagement.Api
+dotnet run --project src/BusinessManagement.Worker     # tiến trình nền nhận OrderCreated (dùng chung UserSecretsId với Api)
 ```
-Nâng một tài khoản lên Admin (chưa có endpoint, chủ ý): `UPDATE "Users" SET "Role" = 'Admin' WHERE "Email" = '<email>';`, rồi đăng nhập lại để lấy token mới (token cũ vẫn mang vai trò cũ).
+- Giao diện RabbitMQ: `http://localhost:15672` (tài khoản `RABBITMQ_USER` trong `.env`; không dùng được `guest` qua cổng Docker).
+- Nâng một tài khoản lên Admin (chưa có endpoint, chủ ý): `UPDATE "Users" SET "Role" = 'Admin' WHERE "Email" = '<email>';`, rồi đăng nhập lại để lấy token mới (token cũ vẫn mang vai trò cũ).
+- `RABBITMQ_DEFAULT_USER/PASS` chỉ có tác dụng khi volume còn trống: đổi mật khẩu phải `rabbitmqctl change_password` hoặc xoá volume `bm-rabbitdata`.
 
 ## 8. Cách chạy test
 ```
-dotnet test                                                   # cần Docker Desktop đang chạy (test persistence)
+dotnet test                                                   # cần Docker Desktop đang chạy (PostgreSQL và RabbitMQ thật)
 dotnet test --filter "FullyQualifiedName~OrderServiceTests"
 ```
 
 ## 9. Lỗi đã biết / nợ kỹ thuật
 
 **Nghiệp vụ và độ tin cậy**
-- `OrderService` chưa dùng `PricingService`; đơn chưa lưu voucher và số tiền giảm (Ngày 13)
+- Dual write: đơn đã commit mà publish lỗi thì mất sự kiện và không có thử lại → Transactional Outbox (Ngày 17); broker chậm (không phải bị từ chối) có thể kéo `POST /api/orders` chậm tới 5 giây
+- Consumer chưa idempotent: tin giao hai lần tạo hai thông báo (test ghi lại hành vi này) → Ngày 16
+- Chưa có thử lại có độ trễ và công cụ phát lại tin từ DLQ (Ngày 16)
 - Chưa có Payments và `Confirm`; đơn Pending giữ hàng mãi nếu bị bỏ rơi (cần job huỷ đơn quá hạn)
 - Chưa có Idempotency-Key: gửi lại `POST /api/orders` tạo thêm một đơn
 - Mọi người dùng đăng nhập đều xem và huỷ được đơn bất kỳ (chưa gắn đơn với người tạo)
 - Giá sản phẩm được đọc trước transaction; đổi giá đồng thời có thể lệch vài mili-giây
 - `Order.Cancel()` ở Domain không được `OrderService` dùng (huỷ bằng SQL); đồng bộ hoặc bỏ
-- Khi làm Payments: tránh chuỗi thanh toán → ghi log → thông báo không atomic (Outbox, Ngày 17)
-- `OrderEventPublisher` và handler chưa ai dùng (Ngày 14: `OrderCreated`); handler lỗi thì mất bản ghi
+- `OrderEventPublisher` và các handler sự kiện trong process (Observer Ngày 6) chưa ai dùng; quyết định giữ hay xoá
+- Khi làm Payments: tránh chuỗi thanh toán → ghi log → thông báo không atomic (Outbox)
 - `IVoucherFactory` Singleton: đổi sang Scoped khi đọc DB
-- Chưa có `Customer.Segment`: ưu đãi theo loại khách chưa áp dụng cho đơn thật
-- `OrderTotal` có hơn 2 chữ số thập phân vẫn được chấp nhận
+- Chưa có `Customer.Segment`: ưu đãi theo loại khách chưa áp dụng cho đơn thật (đang dùng "Standard"); sản phẩm giá 0 + voucher ra 422 khó hiểu
+- `OrderTotal` của `/api/pricing/quote` có hơn 2 chữ số thập phân vẫn được chấp nhận
 - `PUT` sản phẩm và khách là "ghi đè cuối cùng thắng" (chưa có token phiên bản)
 - Sắp xếp theo tên phụ thuộc collation PostgreSQL (tiếng Việt có dấu có thể sắp sai)
 - Tìm kiếm `ToLower().Contains(...)` không dùng được index; cân nhắc trigram nếu bảng lớn
+- Chưa dùng quorum queue và publisher channel pooling; Worker dispatch tuần tự (`ConsumerDispatchConcurrency = 1`)
 - `FileOrderLog` ghi đồng thời có thể ném `IOException` (tạm thời)
 
 **Bảo mật**
@@ -224,19 +282,23 @@ dotnet test --filter "FullyQualifiedName~OrderServiceTests"
 - Chưa có quản lý người dùng và đổi mật khẩu
 
 **Quan sát**
-- `traceId` của 400 tự động (W3C) khác định dạng của 422, 404, 409 (Kestrel); Ngày 13 thống nhất bằng `X-Request-Id`
+- `traceId` của 400 tự động (W3C) khác định dạng của 422, 404, 409 (Kestrel); đã có `X-Request-Id` nhưng chưa thống nhất hai loại
 
-**Nợ dọn dẹp (cần xác nhận đã làm chưa)**
+**Cần xác nhận đã làm chưa**
+- Test `PublishAsync_UnroutableRoutingKey_ObserveBehavior` chưa có assert: ghi lại loại exception (dự đoán `PublishReturnException`) và khoá bằng `Assert.IsType`
+- `GET /api/orders` dùng `[FromQuery] OrderListRequest` (có validation, `DateTimeOffset`), không nhận thẳng `OrderListQuery`
+- Test danh sách đơn theo trạng thái và theo ngày lọc theo `customerId`, không dùng số tổng toàn DB (`Assert.Equal(49, ...)`)
+- Dữ liệu test voucher dùng đơn vị đồng (`SALE50K` = 50.000), không sửa nghiệp vụ cho khớp test
+- `[NotEmptyGuid]` đã áp dụng cho `CustomerId`/`ProductId` của `CreateOrderRequest`
 - `Directory.Build.props`, README, xoá `WeatherForecast*` / `.http` / `Class1.cs`, xoá file `log` ở gốc
 - Đổi tên namespace `Infrastructure.PaymentMethod` / `.Notify` / `.OrderLog` theo vai trò
 - `LegacyBankPaymentAdapter`: kiểm tra việc kiểm tra số 0 đã đặt **sau** bước làm tròn
-- `OrderService.CreateAsync`: kiểm tra đã chặn `Guid.Empty` của `customerId` và `productId` (hai test trả 422)
 
 ## 10. Phần còn thiếu
-Voucher/giảm giá trong đơn, danh sách đơn, Payments, RabbitMQ + Worker, Docker Compose đầy đủ (Api, Worker, RabbitMQ), README, CI.
+Idempotent consumer và thử lại có độ trễ (Ngày 16), Transactional Outbox (Ngày 17), Payments, Docker Compose đầy đủ (Api, Worker, RabbitMQ), README, CI.
 
 ## 11. Công việc tiếp theo
-Ngày 13: tích hợp `PricingService` vào đơn (lưu `DiscountAmount`, `VoucherCode`), `GET /api/orders` có lọc và phân trang, logging có ngữ cảnh và middleware `X-Request-Id`. Ngày 14: khái niệm message queue, RabbitMQ bằng Docker Compose, publish `OrderCreated`.
+Ngày 16: bảng `ProcessedMessages` chống xử lý lặp, thử lại có độ trễ trước khi vào DLQ, đảo kỳ vọng test "tin trùng ra hai thông báo".
 
 ## 12. Câu hỏi phỏng vấn đã học
 - `IEnumerable` và `IQueryable`
@@ -254,19 +316,25 @@ Ngày 13: tích hợp `PricingService` vào đơn (lưu `DiscountAmount`, `Vouch
 - N+1 là gì; phát hiện bằng log SQL và bộ đếm truy vấn; cách sửa
 - Lưu mật khẩu an toàn và JWT hoạt động thế nào; 401 và 403
 - Chống bán vượt tồn khi nhiều request đồng thời (cập nhật nguyên tử, transaction, thứ tự khoá, test song song)
+- Làm log hữu ích khi debug production (structured logging, correlation id, không log dữ liệu cá nhân)
+- Khi nào dùng message queue và nó đem lại vấn đề gì (ít nhất một lần, thứ tự, nhất quán cuối cùng, dual write, outbox)
+- Làm consumer tin cậy (ack thủ công, idempotency, prefetch, DLQ cho tin độc, scope DI mỗi tin, tắt êm)
 - Xử lý lỗ hổng trong transitive dependency (GHSA-v5pm-xwqc-g5wc)
 
 ## 13. Bài học đã rút (câu chuyện phỏng vấn)
 
 **Kiểm thử**
 - `Assert.Throws` đúng với mọi exception cùng loại: phải khoá lý do và kiểm tra hậu quả
-- Test dùng dữ liệu riêng (Guid trong email, nhóm riêng) vì cả collection dùng chung một DB
+- Test dùng dữ liệu riêng (Guid trong email, nhóm riêng, lọc theo `customerId`) vì cả collection dùng chung một DB; không khẳng định số lượng toàn cục
 - Test không gọi đúng hàm của service, hoặc đọc lại bằng cùng `DbContext`, chỉ tự so sánh với chính nó: đọc lại bằng `DbContext` mới
 - Khoá lỗi N+1 bằng test đếm truy vấn (`DbCommandInterceptor`), khoá lỗi đồng thời bằng test song song trên DB thật; viết một test "ngây thơ" để ghi lại lỗi (`Stock` còn 4 sau 10 lần bán từ 5 hàng)
+- Test "ObserveBehavior" phải kết thúc bằng một assert, nếu không nó luôn xanh
+- Test cần cấu hình riêng (Testcontainers) phải ghi đè cấu hình thật; nếu không nó nối vào DB và RabbitMQ của môi trường dev
 
 **DI và cấu hình**
 - `ValidateOnBuild` một mình không bắt được captive dependency; cần bật cả `ValidateScopes`
-- Volume Docker giữ thông tin đăng nhập của lần khởi tạo đầu; đổi mật khẩu hoặc cổng phải `docker compose down -v`
+- Volume Docker giữ thông tin đăng nhập của lần khởi tạo đầu (PostgreSQL và RabbitMQ): đổi mật khẩu hoặc cổng phải xoá volume hoặc đổi mật khẩu trong chính dịch vụ
+- Tham số của queue RabbitMQ (như DLX) không đổi được sau khi tạo: khai báo đúng từ đầu
 
 **Database và EF Core**
 - `ON DELETE RESTRICT` được PostgreSQL báo bằng `23001`, không phải `23503`; khi map lỗi DB sang HTTP, coi nhóm `23xxx` là xung đột dữ liệu
@@ -275,36 +343,20 @@ Ngày 13: tích hợp `PricingService` vào đơn (lưu `DiscountAmount`, `Vouch
 - LINQ trả về truy vấn mới: quên gán lại thì bộ lọc im lặng biến mất; test có `TotalCount` trên dữ liệu có sẵn mới bắt được
 - Index chỉ giúp khi điều kiện chọn lọc; đọc `EXPLAIN` (loại node, ước lượng so với thực tế, `Buffers`) trước khi thêm index
 - `COUNT(DISTINCT)` trên nhiều dòng có thể buộc `Sort` ra đĩa
+- `Sum`/`Count` trong `Select` của EF thành một câu SQL, không phải N+1; chứng minh bằng đếm truy vấn
 
 **Bảo mật và API**
 - Payload JWT không mã hoá: không đưa dữ liệu nhạy cảm vào; token cũ giữ vai trò cũ đến khi hết hạn
 - Thiếu `RoleClaimType` thì `[Authorize(Roles)]` luôn 403; `[AllowAnonymous]` ở cấp class ghi đè mọi `[Authorize]`
 - 404 do routing (không khớp `{id:guid}`) khác 404 do `NotFoundException`: chỉ loại sau mới có ProblemDetails
-- `FirstOrDefault` trên kiểu giá trị trả về giá trị mặc định (`Guid.Empty`), không phân biệt "không tìm thấy" với "tìm thấy giá trị mặc định"
+- `FirstOrDefault` trên kiểu giá trị trả về giá trị mặc định (`Guid.Empty`), không phân biệt "không tìm thấy" với "tìm thấy giá trị mặc định"; `[Required]` cũng vô tác dụng với `Guid`
+- Action `GET` nhận kiểu phức hợp mà không có `[FromQuery]` sẽ bind từ thân request
+- Không sửa dữ liệu nghiệp vụ cho khớp test; sửa dữ liệu test
 
-**Đồng thời**
+**Đồng thời và messaging**
 - Đọc, kiểm tra, ghi trong ứng dụng mất cập nhật; chuyển thành một câu `UPDATE` có điều kiện và kiểm tra số dòng bị ảnh hưởng
 - Khoá theo thứ tự nhất quán để tránh deadlock; cổng trạng thái nguyên tử để chống làm hai lần (hoàn kho hai lần)
-
-## Quyết định (Ngày 13)
-- Đơn lưu DiscountAmount và VoucherCode (chụp lúc đặt, như UnitPrice); Total = Subtotal - DiscountAmount
-- Voucher kiểm tra TRƯỚC transaction: mã sai không chạm kho, transaction giữ khoá ngắn hơn
-- Danh sách đơn: một truy vấn đếm + một truy vấn trang (khoá bằng test đếm truy vấn); sắp xếp có ThenBy(Id)
-- X-Request-Id: nhận từ client chỉ khi khớp ^[A-Za-z0-9_-]{8,64}$, nếu không sinh mới; có trong log (scope), header và lỗi
-- Log: message template, chỉ ghi Id (không email, token, mật khẩu); log "đã tạo đơn" ghi sau commit
-## Nợ kỹ thuật (thêm)
-- Customer.Segment chưa có (đang dùng "Standard"); sản phẩm giá 0 + voucher ra 422 khó hiểu
-- 400 tự động của MVC vẫn dùng traceId W3C
-
-## Quyết định (Ngày 14)
-- Exchange topic bền vững bm.events; queue bm.orders.created durable, gắn DLX bm.events.dlx → bm.orders.created.dlq (khai báo sẵn vì tham số queue không đổi được sau khi tạo)
-- Tin persistent + publisher confirm; mandatory = true; một kết nối dùng chung, mỗi lần publish một channel
-- Publish sau commit; lỗi publish chỉ ghi log Error, không làm hỏng đơn; publish dùng timeout 5 giây, không dùng ct của request
-- Sự kiện chỉ chứa Id và số tiền (không email); EventId để consumer chống trùng
-- Topology khai báo ở cả publisher để tin không rơi khi Worker chưa chạy
-
-## Nợ kỹ thuật (thêm)
-- Dual write: đơn đã commit mà publish lỗi thì mất sự kiện; không có thử lại → Transactional Outbox (Ngày 17)
-- Chưa có consumer (Ngày 15), retry/DLQ thật và idempotency (Ngày 16)
-- Chưa dùng quorum queue và publisher channel pooling
-- RabbitMQ chưa nằm trong Compose cho Api/Worker (Ngày 18)
+- Ghi hai hệ thống (DB và broker) không atomic: commit xong publish lỗi thì mất sự kiện; log "đã tạo" phải ghi sau commit
+- `autoAck = true` xoá tin ngay khi giao nên consumer chết là mất tin; `ack` thủ công sau khi xử lý và giao ít nhất một lần nên consumer phải idempotent
+- Tin độc phải `nack(requeue: false)` vào DLQ; `requeue: true` làm tin lặp vô hạn
+- Dùng `IServiceScopeFactory` tạo scope cho mỗi tin: `BackgroundService` là Singleton, `DbContext` là Scoped

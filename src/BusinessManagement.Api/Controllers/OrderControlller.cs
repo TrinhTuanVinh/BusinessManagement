@@ -24,6 +24,6 @@ public class OrdersController(OrderService orders) : ControllerBase
 
     [HttpGet]
     public async Task<ActionResult<PageResult<OrderSummaryDto>>> GetList([FromQuery] OrderListRequest q, CancellationToken ct)
-   => Ok(await orders.ListAsync(q, ct));
+   => Ok(await orders.ListAsync(q.ToQuery(), ct));
 
 }

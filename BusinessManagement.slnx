@@ -11,6 +11,7 @@
     <Project Path="src/BusinessManagement.Application/BusinessManagement.Application.csproj" />
     <Project Path="src/BusinessManagement.Domain/BusinessManagement.Domain.csproj" />
     <Project Path="src/BusinessManagement.Infrastructure/BusinessManagement.Infrastructure.csproj" />
+    <Project Path="src/BusinessManagement.Worker/BusinessManagement.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/BusinessManagement.IntegrationTests/BusinessManagement.IntegrationTests.csproj" />

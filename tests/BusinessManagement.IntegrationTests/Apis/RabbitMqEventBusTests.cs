@@ -1,20 +1,30 @@
 
+using System.Text;
 using System.Text.Json;
 using BusinessManagement.Application.Messaging;
+using BusinessManagement.Domain.Entities;
 using BusinessManagement.Infrastructure.Messaging;
-using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
+using BusinessManagement.Worker;
+using Microsoft.Extensions.Hosting;
 using RabbitMQ.Client;
-using RabbitMQ.Client.Exceptions;
-using Xunit;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using BusinessManagement.Application.Notifications;
 using Xunit.Abstractions;
 
+[Collection("postgres")]
 public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
 {
     private readonly RabbitFixture _fixture;
+    private readonly PostgresFixture _postgre;
+    private readonly ITestOutputHelper _output;
 
-    public RabbitMqEventBusTests(RabbitFixture fixture)
+    public RabbitMqEventBusTests(RabbitFixture fixture, PostgresFixture postgre, ITestOutputHelper output)
     {
         _fixture = fixture;
+        _postgre = postgre;
+        _output = output;
     }
 
     private async Task PrepareQueuesAsync()
@@ -43,6 +53,22 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
             RabbitMqTopology.OrderCreatedDlq);
     }
 
+    private IHost CreateWorkerHost(Action<IServiceCollection>? overrides = null)
+    {
+        var builder = Host.CreateApplicationBuilder();
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:Default"] = _postgre.ConnectionString,
+            ["RabbitMq:Host"] = _fixture.Options.Host,
+            ["RabbitMq:Port"] = _fixture.Options.Port.ToString(),
+            ["RabbitMq:UserName"] = _fixture.Options.UserName,
+            ["RabbitMq:Password"] = _fixture.Options.Password,
+            ["RabbitMq:VirtualHost"] = _fixture.Options.VirtualHost
+        });
+        builder.Services.AddWorkerServices(builder.Configuration);
+        overrides?.Invoke(builder.Services);
+        return builder.Build();
+    }
     private static OrderCreated CreateEvent()
     {
         return new OrderCreated(
@@ -233,5 +259,214 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
                 "nobody.listens",
                 message,
                 CancellationToken.None));
+        _output.WriteLine(exception is null ? "NO EXCEPTION" : $"{exception.GetType().FullName}: {exception.Message}");
+        Assert.NotNull(exception);     // tin sai routing key không được biến mất im lặng
+    }
+    [Fact]
+    public async Task ConsumeAsync_ValidMessage_CreatesNotification()
+    {
+        await PrepareQueuesAsync();
+
+        using var host = CreateWorkerHost();
+
+        await host.StartAsync();
+
+        var message = CreateEvent();
+
+        await using var bus = new RabbitMqEventBus(_fixture.Options);
+
+        await bus.PublishAsync(
+            RoutingKeys.OrderCreated,
+            message,
+            CancellationToken.None);
+
+        var timeout = DateTime.UtcNow.AddSeconds(10);
+        Notification? notification = null;
+
+        while (DateTime.UtcNow < timeout)
+        {
+            await using var db = _postgre.CreateContext();
+
+            notification = await db.Notifications
+                .FirstOrDefaultAsync(x => x.OrderId == message.OrderId);
+
+            if (notification is not null)
+                break;
+
+            await Task.Delay(100);
+        }
+
+        Assert.NotNull(notification);
+
+        await host.StopAsync();
+    }
+    [Fact]
+    public async Task ConsumeAsync_InvalidJson_MovesMessageToDlq()
+    {
+        await PrepareQueuesAsync();
+
+        using var provider = CreateWorkerHost();
+        await provider.StartAsync(CancellationToken.None);
+
+        var factory = new ConnectionFactory
+        {
+            HostName = _fixture.Options.Host,
+            Port = _fixture.Options.Port,
+            UserName = _fixture.Options.UserName,
+            Password = _fixture.Options.Password,
+            VirtualHost = _fixture.Options.VirtualHost
+        };
+
+        await using var connection = await factory.CreateConnectionAsync();
+        await using var channel = await connection.CreateChannelAsync();
+
+        await channel.BasicPublishAsync(
+            exchange: RabbitMqTopology.Exchange,
+            routingKey: RoutingKeys.OrderCreated,
+            mandatory: false,
+            basicProperties: new BasicProperties
+            {
+                Persistent = true,
+                ContentType = "application/json"
+            },
+            body: Encoding.UTF8.GetBytes("not json"));
+
+        BasicGetResult? dlqResult = null;
+        var timeout = DateTime.UtcNow.AddSeconds(5);
+
+        while (DateTime.UtcNow < timeout)
+        {
+            dlqResult = await channel.BasicGetAsync(
+                RabbitMqTopology.OrderCreatedDlq,
+                autoAck: true);
+
+            if (dlqResult is not null)
+                break;
+
+            await Task.Delay(100);
+        }
+
+        Assert.NotNull(dlqResult);
+
+        var mainResult = await channel.BasicGetAsync(
+            RabbitMqTopology.OrderCreatedQueue,
+            autoAck: true);
+
+        Assert.Null(mainResult);
+
+        await provider.StopAsync(CancellationToken.None);
+    }
+    private sealed class ThrowingHandler : IOrderCreatedHandler
+    {
+        public Task HandleAsync(OrderCreated message, CancellationToken ct)
+            => throw new InvalidOperationException("boom");
+    }
+
+    [Fact]
+    public async Task ConsumeAsync_HandlerThrows_MovesMessageToDlq()
+    {
+        await PrepareQueuesAsync();
+
+        using var host = CreateWorkerHost(s => s.AddScoped<IOrderCreatedHandler, ThrowingHandler>());
+
+        await host.StartAsync(CancellationToken.None);
+
+        var message = CreateEvent();
+
+        await using var bus = new RabbitMqEventBus(_fixture.Options);
+        await bus.PublishAsync(
+            RoutingKeys.OrderCreated,
+            message,
+            CancellationToken.None);
+
+        var factory = new ConnectionFactory
+        {
+            HostName = _fixture.Options.Host,
+            Port = _fixture.Options.Port,
+            UserName = _fixture.Options.UserName,
+            Password = _fixture.Options.Password,
+            VirtualHost = _fixture.Options.VirtualHost
+        };
+
+        await using var connection = await factory.CreateConnectionAsync();
+        await using var channel = await connection.CreateChannelAsync();
+
+        BasicGetResult? dlqResult = null;
+        var timeout = DateTime.UtcNow.AddSeconds(5);
+
+        while (DateTime.UtcNow < timeout)
+        {
+            dlqResult = await channel.BasicGetAsync(
+                RabbitMqTopology.OrderCreatedDlq,
+                autoAck: true);
+
+            if (dlqResult is not null)
+                break;
+
+            await Task.Delay(100);
+        }
+
+        Assert.NotNull(dlqResult);
+        Assert.NotNull(dlqResult.BasicProperties.Headers);
+        Assert.Contains("x-death", dlqResult.BasicProperties.Headers.Keys);
+
+        await host.StopAsync(CancellationToken.None);
+    }
+    [Fact]
+    public async Task ConsumeAsync_ConsumerStopped_MessageRemainsAndIsProcessedAfterRestart()
+    {
+        await PrepareQueuesAsync();
+
+        using var provider = CreateWorkerHost();
+        await provider.StartAsync(CancellationToken.None);
+        await provider.StopAsync(CancellationToken.None);
+
+        var message = CreateEvent();
+
+        await using var bus = new RabbitMqEventBus(_fixture.Options);
+        await bus.PublishAsync(
+            RoutingKeys.OrderCreated,
+            message,
+            CancellationToken.None);
+
+        var factory = new ConnectionFactory
+        {
+            HostName = _fixture.Options.Host,
+            Port = _fixture.Options.Port,
+            UserName = _fixture.Options.UserName,
+            Password = _fixture.Options.Password,
+            VirtualHost = _fixture.Options.VirtualHost
+        };
+
+        await using var connection = await factory.CreateConnectionAsync();
+        await using var channel = await connection.CreateChannelAsync();
+
+        // Kiểm tra message đang Ready mà không lấy message khỏi queue.
+        var queueInfo = await channel.QueueDeclarePassiveAsync(
+            RabbitMqTopology.OrderCreatedQueue);
+
+        Assert.Equal(1u, queueInfo.MessageCount);
+        using var host = CreateWorkerHost();
+        await host.StartAsync(CancellationToken.None);
+
+        var timeout = DateTime.UtcNow.AddSeconds(10);
+        Notification? notification = null;
+
+        while (DateTime.UtcNow < timeout)
+        {
+            await using var db = _postgre.CreateContext();
+
+            notification = await db.Notifications
+                .FirstOrDefaultAsync(x => x.OrderId == message.OrderId);
+
+            if (notification is not null)
+                break;
+
+            await Task.Delay(100);
+        }
+
+        Assert.NotNull(notification);
+
+        await host.StopAsync(CancellationToken.None);
     }
 }

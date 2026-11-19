@@ -6,10 +6,11 @@ namespace BusinessManagement.Application.Abstractions;
 
 public interface IAppDbContext
 {
-    DatabaseFacade Database { get; } 
+    DatabaseFacade Database { get; }
     DbSet<Product> Products { get; }
     DbSet<Customer> Customers { get; }
     DbSet<Order> Orders { get; }
     DbSet<User> Users { get; }
+    DbSet<Notification> Notifications { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

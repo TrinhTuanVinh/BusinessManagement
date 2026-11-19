@@ -17,6 +17,30 @@ namespace BusinessManagement.Infrastructure;
 
 public static class DependencyInjection
 {
+    public static IServiceCollection AddMessaging(this IServiceCollection services, IConfiguration configuration)
+    {
+        var rabbit = new RabbitMqOptions
+        {
+            Host = configuration["RabbitMq:Host"] ?? "",
+            Port = int.TryParse(configuration["RabbitMq:Port"], out var rabbitPort) ? rabbitPort : 5672,
+            UserName = configuration["RabbitMq:UserName"] ?? "",
+            Password = configuration["RabbitMq:Password"] ?? "",
+            VirtualHost = configuration["RabbitMq:VirtualHost"] ?? "/"
+        };
+        rabbit.Validate();
+        services.AddSingleton(rabbit);
+        services.AddSingleton<IEventBus, RabbitMqEventBus>();
+        return services;
+    }
+    public static IServiceCollection AddPersistence(this IServiceCollection services, IConfiguration configuration)
+    {
+        var connectionString = configuration.GetConnectionString("Default");
+        if (string.IsNullOrWhiteSpace(connectionString))
+            throw new InvalidOperationException("Missing connection string 'ConnectionStrings:Default'. Set it with user-secrets or the environment variable ConnectionStrings__Default.");
+        services.AddDbContext<AppDbContext>(o => o.UseNpgsql(connectionString));
+        services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+        return services;
+    }
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         var merchantAccount = configuration["Payments:Bank:MerchantAccount"];
@@ -25,15 +49,7 @@ public static class DependencyInjection
             throw new InvalidOperationException("Missing configuration 'Payments:Bank:MerchantAccount'. " +
         "Set it with user-secrets or the environment variable Payments__Bank__MerchantAccount.");
         }
-        var connectionString = configuration.GetConnectionString("Default");
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException(
-                 "Missing connection string 'ConnectionStrings:Default'. " +
-        "Set it with user-secrets or the environment variable ConnectionStrings__Default.");
-        }
-        services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
-        services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+        services.AddPersistence(configuration);
 
         var jwt = new JwtOptions
         {
@@ -47,18 +63,8 @@ public static class DependencyInjection
         services.AddSingleton<ITokenService, JwtTokenService>();
         services.AddSingleton<BusinessManagement.Application.Auth.IPasswordHasher, IdentityPasswordHasher>();
 
-        var rabbit = new RabbitMqOptions
-        {
-            Host = configuration["RabbitMq:Host"] ?? "",
-            Port = int.TryParse(configuration["RabbitMq:Port"], out var rabbitPort) ? rabbitPort : 5672,
-            UserName = configuration["RabbitMq:UserName"] ?? "",
-            Password = configuration["RabbitMq:Password"] ?? "",
-            VirtualHost = configuration["RabbitMq:VirtualHost"] ?? "/"
-        };
-        rabbit.Validate();
-        services.AddSingleton(rabbit);
-        services.AddSingleton<IEventBus, RabbitMqEventBus>();
-        
+        services.AddMessaging(configuration);
+
         services.AddSingleton<LegacyBankGateway>();
         services.AddSingleton<IPaymentMethod>(sp => new LoggingPaymentMethod(
             new LegacyBankPaymentAdapter(sp.GetRequiredService<LegacyBankGateway>(), merchantAccount),
