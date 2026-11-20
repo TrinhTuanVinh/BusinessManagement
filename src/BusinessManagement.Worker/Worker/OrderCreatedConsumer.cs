@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BusinessManagement.Application.Messaging;
 using BusinessManagement.Application.Notifications;
+using BusinessManagement.Domain.Common;
 using BusinessManagement.Infrastructure.Messaging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -35,10 +36,14 @@ public sealed class OrderCreatedConsumer(
             Password = options.Password,
             AutomaticRecoveryEnabled = true
         };
-        await using var connection = await factory.CreateConnectionAsync(ct);       // lần đầu lỗi thì vòng lặp ở trên thử lại
-        await using var channel = await connection.CreateChannelAsync(cancellationToken: ct);
+        await using var connection = await factory.CreateConnectionAsync(ct);
+        await using var channel = await connection.CreateChannelAsync(
+                                    new CreateChannelOptions(
+                                        publisherConfirmationsEnabled: true,
+                                        publisherConfirmationTrackingEnabled: true),
+                                    ct);
 
-        await RabbitMqTopology.DeclareAsync(channel, ct);
+        await RabbitMqTopology.DeclareAsync(channel, options.RetryDelayMs, ct);
         await channel.BasicQosAsync(prefetchSize: 0, prefetchCount: 10, global: false, ct);
 
         var consumer = new AsyncEventingBasicConsumer(channel);
@@ -48,6 +53,11 @@ public sealed class OrderCreatedConsumer(
         logger.LogInformation("Consuming from {Queue}", RabbitMqTopology.OrderCreatedQueue);
         await Task.Delay(Timeout.Infinite, ct);                                     // chạy đến khi bị dừng
     }
+    private const string AttemptHeader = "x-attempt";
+
+    private static int GetFailures(IReadOnlyBasicProperties props)
+        => props.Headers is not null && props.Headers.TryGetValue(AttemptHeader, out var v)
+            ? v switch { int n => n, long l => (int)l, _ => 0 } : 0;
 
     private async Task HandleAsync(IChannel channel, BasicDeliverEventArgs ea, CancellationToken ct)
     {
@@ -69,14 +79,38 @@ public sealed class OrderCreatedConsumer(
             await serviceScope.ServiceProvider.GetRequiredService<IOrderCreatedHandler>().HandleAsync(message, ct);
             await channel.BasicAckAsync(ea.DeliveryTag, multiple: false, ct);        // ack SAU khi xử lý xong
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            // đang tắt: không ack, không nack; broker sẽ giao lại cho lần chạy sau
-        }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Handler failed (redelivered: {Redelivered})", ea.Redelivered);
-            await channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false, ct);   // Ngày 16: thử lại có độ trễ trước khi vào DLQ
+            var failures = GetFailures(ea.BasicProperties) + 1;
+            var permanent = ex is DomainException;
+            if (permanent || failures >= options.MaxAttempts)
+            {
+                logger.LogError(ex, "Giving up after {Failures} failure(s) (permanent: {Permanent}); sending to DLQ", failures, permanent);
+                await channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false, ct);
+                return;
+            }
+
+            logger.LogWarning(ex, "Handler failed (failure {Failures} of {Max}); retrying in {DelayMs} ms",
+                failures, options.MaxAttempts, options.RetryDelayMs);
+            try
+            {
+                var props = new BasicProperties
+                {
+                    ContentType = ea.BasicProperties.ContentType,
+                    DeliveryMode = DeliveryModes.Persistent,
+                    MessageId = ea.BasicProperties.MessageId,
+                    Type = ea.BasicProperties.Type,
+                    Headers = new Dictionary<string, object?> { [AttemptHeader] = failures }
+                };
+                await channel.BasicPublishAsync(RabbitMqTopology.RetryExchange, RoutingKeys.OrderCreated,
+                    mandatory: true, props, ea.Body, ct);
+                await channel.BasicAckAsync(ea.DeliveryTag, multiple: false, ct);
+            }
+            catch (Exception publishEx) when (publishEx is not OperationCanceledException)
+            {
+                logger.LogError(publishEx, "Could not schedule retry; sending to DLQ");
+                await channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false, ct);
+            }
         }
     }
 }

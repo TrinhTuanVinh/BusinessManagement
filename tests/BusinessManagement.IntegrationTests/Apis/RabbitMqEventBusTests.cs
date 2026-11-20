@@ -43,7 +43,7 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
 
         // Đảm bảo topology đã tồn tại
         await RabbitMqTopology.DeclareAsync(
-            channel, CancellationToken.None);
+            channel, _fixture.Options.RetryDelayMs, CancellationToken.None);
 
         // Xóa message cũ trước mỗi test
         await channel.QueuePurgeAsync(
@@ -51,6 +51,9 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
 
         await channel.QueuePurgeAsync(
             RabbitMqTopology.OrderCreatedDlq);
+
+        await channel.QueuePurgeAsync(
+      RabbitMqTopology.OrderCreatedRetryQueue);
     }
 
     private IHost CreateWorkerHost(Action<IServiceCollection>? overrides = null)

@@ -11,7 +11,15 @@ public sealed class RabbitFixture : IAsyncLifetime
         await _container.StartAsync();
         var uri = new Uri(_container.GetConnectionString());
         var credentials = uri.UserInfo.Split(':');
-        Options = new RabbitMqOptions { Host = uri.Host, Port = uri.Port, UserName = credentials[0], Password = credentials[1] };
+        Options = new RabbitMqOptions
+        {
+            Host = uri.Host,
+            Port = uri.Port,
+            UserName = credentials[0],
+            Password = credentials[1],
+            RetryDelayMs = 300,
+            MaxAttempts = 3
+        };
     }
 
     public Task DisposeAsync() => _container.DisposeAsync().AsTask();

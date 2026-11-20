@@ -56,7 +56,7 @@ public sealed class RabbitMqEventBus : IEventBus, IAsyncDisposable
             if (!_topologyDeclared)
             {
                 await using var channel = await _connection.CreateChannelAsync(cancellationToken: ct);
-                await RabbitMqTopology.DeclareAsync(channel, ct);
+                await RabbitMqTopology.DeclareAsync(channel, _options.RetryDelayMs, ct);
                 _topologyDeclared = true;
             }
             return _connection;

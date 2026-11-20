@@ -25,7 +25,9 @@ public static class DependencyInjection
             Port = int.TryParse(configuration["RabbitMq:Port"], out var rabbitPort) ? rabbitPort : 5672,
             UserName = configuration["RabbitMq:UserName"] ?? "",
             Password = configuration["RabbitMq:Password"] ?? "",
-            VirtualHost = configuration["RabbitMq:VirtualHost"] ?? "/"
+            VirtualHost = configuration["RabbitMq:VirtualHost"] ?? "/",
+            RetryDelayMs = int.TryParse(configuration["RabbitMq:RetryDelayMs"], out var delayMS) ? delayMS : 300,
+            MaxAttempts = int.TryParse(configuration["RabbitMq:MaxAttempts"], out var maxAttempts) ? maxAttempts : 3
         };
         rabbit.Validate();
         services.AddSingleton(rabbit);

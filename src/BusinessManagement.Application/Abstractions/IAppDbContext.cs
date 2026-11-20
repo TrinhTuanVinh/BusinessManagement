@@ -1,5 +1,6 @@
 using BusinessManagement.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace BusinessManagement.Application.Abstractions;
@@ -12,5 +13,7 @@ public interface IAppDbContext
     DbSet<Order> Orders { get; }
     DbSet<User> Users { get; }
     DbSet<Notification> Notifications { get; }
+    DbSet<ProcessedMessage> ProcessedMessages { get; }
+    ChangeTracker ChangeTracker { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
