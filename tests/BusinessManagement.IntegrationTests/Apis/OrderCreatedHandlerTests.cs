@@ -72,10 +72,10 @@ public sealed class OrderCreatedHandlerTests
     public async Task HandleAsync_DuplicateEvent_Concurrent_CreatesOneNotification()
     {
         var message = CreateEvent();
-        var gate = new TaskCompletionSource();
-        await gate.Task;
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var tasks = Enumerable.Range(0, 10).Select(async _ =>
         {
+            await gate.Task;
             await using var db = _postgres.CreateContext();
 
             var handler = CreateHandler(db);
@@ -83,8 +83,10 @@ public sealed class OrderCreatedHandlerTests
             await handler.HandleAsync(
                 message,
                 CancellationToken.None);
-        });
+        }).ToArray();
+
         gate.SetResult();
+        
         var exception = await Record.ExceptionAsync(
             () => Task.WhenAll(tasks));
 

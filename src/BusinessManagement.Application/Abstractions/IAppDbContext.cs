@@ -14,6 +14,8 @@ public interface IAppDbContext
     DbSet<User> Users { get; }
     DbSet<Notification> Notifications { get; }
     DbSet<ProcessedMessage> ProcessedMessages { get; }
+    
+    DbSet<OutboxMessage> OutboxMessages { get; }
     ChangeTracker ChangeTracker { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

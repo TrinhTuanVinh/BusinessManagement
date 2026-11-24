@@ -97,7 +97,7 @@ public sealed class OrderCreatedConsumerTests : IClassFixture<RabbitFixture>
         await bus.PublishAsync(
             RoutingKeys.OrderCreated,
             message,
-            CancellationToken.None);
+            CancellationToken.None).WithTimeout();
     }
 
     private async Task<uint> GetQueueCountAsync(string queue)
@@ -113,22 +113,7 @@ public sealed class OrderCreatedConsumerTests : IClassFixture<RabbitFixture>
         return result.MessageCount;
     }
 
-    private async Task WaitUntilAsync(
-        Func<Task<bool>> condition,
-        TimeSpan? timeout = null)
-    {
-        var deadline = DateTime.UtcNow.Add(timeout ?? TimeSpan.FromSeconds(10));
-
-        while (DateTime.UtcNow < deadline)
-        {
-            if (await condition())
-                return;
-
-            await Task.Delay(100);
-        }
-
-        Assert.Fail("Condition was not satisfied before timeout.");
-    }
+ 
 
     private async Task<(int Notifications, int Processed)> GetDatabaseCountsAsync(
         OrderCreated message)
@@ -154,14 +139,14 @@ public sealed class OrderCreatedConsumerTests : IClassFixture<RabbitFixture>
         await PrepareQueuesAsync();
 
         using var host = CreateWorkerHost();
-        await host.StartAsync();
+        await host.StartAsync().WithTimeout();
 
         var message = CreateEvent();
 
-        await PublishAsync(message);
-        await PublishAsync(message);
+        await PublishAsync(message).WithTimeout();
+        await PublishAsync(message).WithTimeout();
 
-        await WaitUntilAsync(async () =>
+        await CommonFunction.WaitUntilAsync(async () =>
         {
             var counts = await GetDatabaseCountsAsync(message);
             var queueCount = await GetQueueCountAsync(
@@ -185,7 +170,7 @@ public sealed class OrderCreatedConsumerTests : IClassFixture<RabbitFixture>
             0u,
             await GetQueueCountAsync(RabbitMqTopology.OrderCreatedDlq));
 
-        await host.StopAsync();
+        await host.StopAsync().WithTimeout();
     }
 
     // Test 5:
@@ -207,13 +192,13 @@ public sealed class OrderCreatedConsumerTests : IClassFixture<RabbitFixture>
                 sp => sp.GetRequiredService<FlakyHandler>());
         });
 
-        await host.StartAsync();
+        await host.StartAsync().WithTimeout();
 
         var message = CreateEvent();
 
-        await PublishAsync(message);
+        await PublishAsync(message).WithTimeout();
 
-        await WaitUntilAsync(async () =>
+        await CommonFunction.WaitUntilAsync(async () =>
         {
             var counts = await GetDatabaseCountsAsync(message);
 
@@ -235,7 +220,7 @@ public sealed class OrderCreatedConsumerTests : IClassFixture<RabbitFixture>
             0u,
             await GetQueueCountAsync(RabbitMqTopology.OrderCreatedDlq));
 
-        await host.StopAsync();
+        await host.StopAsync().WithTimeout();
     }
 
     // Test 6:
@@ -255,13 +240,13 @@ public sealed class OrderCreatedConsumerTests : IClassFixture<RabbitFixture>
                 sp => sp.GetRequiredService<AlwaysFailingHandler>());
         });
 
-        await host.StartAsync();
+        await host.StartAsync().WithTimeout();
 
         var message = CreateEvent();
 
-        await PublishAsync(message);
+        await PublishAsync(message).WithTimeout();
 
-        await WaitUntilAsync(async () =>
+        await CommonFunction.WaitUntilAsync(async () =>
         {
             return handler.Calls == 3 &&
                    await GetQueueCountAsync(
@@ -287,7 +272,7 @@ public sealed class OrderCreatedConsumerTests : IClassFixture<RabbitFixture>
         Assert.Equal(0, counts.Notifications);
         Assert.Equal(0, counts.Processed);
 
-        await host.StopAsync();
+        await host.StopAsync().WithTimeout();
     }
 
     // Test 7:
@@ -307,13 +292,13 @@ public sealed class OrderCreatedConsumerTests : IClassFixture<RabbitFixture>
                 sp => sp.GetRequiredService<DomainFailingHandler>());
         });
 
-        await host.StartAsync();
+        await host.StartAsync().WithTimeout();
 
         var message = CreateEvent();
 
-        await PublishAsync(message);
+        await PublishAsync(message).WithTimeout();
 
-        await WaitUntilAsync(async () =>
+        await CommonFunction.WaitUntilAsync(async () =>
         {
             return handler.Calls == 1 &&
                    await GetQueueCountAsync(
@@ -339,7 +324,7 @@ public sealed class OrderCreatedConsumerTests : IClassFixture<RabbitFixture>
         Assert.Equal(0, counts.Notifications);
         Assert.Equal(0, counts.Processed);
 
-        await host.StopAsync();
+        await host.StopAsync().WithTimeout();
     }
 
     private sealed class FlakyHandler : IOrderCreatedHandler

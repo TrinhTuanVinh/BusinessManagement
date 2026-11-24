@@ -14,24 +14,8 @@ public sealed class RabbitMqEventBus : IEventBus, IAsyncDisposable
 
     public RabbitMqEventBus(RabbitMqOptions options) => _options = options;
 
-    public async Task PublishAsync<T>(string routingKey, T message, CancellationToken ct)
-    {
-        var connection = await GetConnectionAsync(ct);
-        await using var channel = await connection.CreateChannelAsync(
-            new CreateChannelOptions(publisherConfirmationsEnabled: true, publisherConfirmationTrackingEnabled: true),
-            ct);
-
-        var props = new BasicProperties
-        {
-            ContentType = "application/json",
-            DeliveryMode = DeliveryModes.Persistent,
-            MessageId = Guid.NewGuid().ToString("N"),
-            Type = typeof(T).Name
-        };
-
-        await channel.BasicPublishAsync(RabbitMqTopology.Exchange, routingKey, mandatory: true, props,
-            JsonSerializer.SerializeToUtf8Bytes(message), ct);
-    }
+    public Task PublishAsync<T>(string routingKey, T message, CancellationToken ct)
+    => PublishRawAsync(routingKey, typeof(T).Name, Guid.NewGuid(), JsonSerializer.SerializeToUtf8Bytes(message), ct);
 
     private async Task<IConnection> GetConnectionAsync(CancellationToken ct)
     {
@@ -68,5 +52,29 @@ public sealed class RabbitMqEventBus : IEventBus, IAsyncDisposable
     {
         if (_connection is not null) await _connection.CloseAsync();
         _gate.Dispose();
+    }
+
+    public async Task PublishRawAsync(string routingKey, string type, Guid messageId, ReadOnlyMemory<byte> body, CancellationToken ct)
+    {
+        var connection = await GetConnectionAsync(ct);
+        await using var channel = await connection.CreateChannelAsync(
+            new CreateChannelOptions(publisherConfirmationsEnabled: true, publisherConfirmationTrackingEnabled: true),
+            ct);
+
+        var props = new BasicProperties
+        {
+            ContentType = "application/json",
+            DeliveryMode = DeliveryModes.Persistent,
+            MessageId = messageId.ToString("N"),
+            Type = type
+        };
+
+        await channel.BasicPublishAsync(
+            exchange: RabbitMqTopology.Exchange,
+            routingKey: routingKey,
+             mandatory: true,
+             props,
+             body,
+             ct);
     }
 }

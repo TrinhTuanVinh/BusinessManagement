@@ -64,9 +64,6 @@ public static class DependencyInjection
         services.AddSingleton(jwt);
         services.AddSingleton<ITokenService, JwtTokenService>();
         services.AddSingleton<BusinessManagement.Application.Auth.IPasswordHasher, IdentityPasswordHasher>();
-
-        services.AddMessaging(configuration);
-
         services.AddSingleton<LegacyBankGateway>();
         services.AddSingleton<IPaymentMethod>(sp => new LoggingPaymentMethod(
             new LegacyBankPaymentAdapter(sp.GetRequiredService<LegacyBankGateway>(), merchantAccount),

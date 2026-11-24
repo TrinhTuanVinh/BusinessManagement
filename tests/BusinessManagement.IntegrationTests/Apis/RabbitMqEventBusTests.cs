@@ -27,51 +27,10 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
         _output = output;
     }
 
-    private async Task PrepareQueuesAsync()
-    {
-        var factory = new ConnectionFactory
-        {
-            HostName = _fixture.Options.Host,
-            Port = _fixture.Options.Port,
-            UserName = _fixture.Options.UserName,
-            Password = _fixture.Options.Password,
-            VirtualHost = _fixture.Options.VirtualHost
-        };
 
-        await using var connection = await factory.CreateConnectionAsync();
-        await using var channel = await connection.CreateChannelAsync();
-
-        // Đảm bảo topology đã tồn tại
-        await RabbitMqTopology.DeclareAsync(
-            channel, _fixture.Options.RetryDelayMs, CancellationToken.None);
-
-        // Xóa message cũ trước mỗi test
-        await channel.QueuePurgeAsync(
-            RabbitMqTopology.OrderCreatedQueue);
-
-        await channel.QueuePurgeAsync(
-            RabbitMqTopology.OrderCreatedDlq);
-
-        await channel.QueuePurgeAsync(
-      RabbitMqTopology.OrderCreatedRetryQueue);
-    }
 
     private IHost CreateWorkerHost(Action<IServiceCollection>? overrides = null)
-    {
-        var builder = Host.CreateApplicationBuilder();
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["ConnectionStrings:Default"] = _postgre.ConnectionString,
-            ["RabbitMq:Host"] = _fixture.Options.Host,
-            ["RabbitMq:Port"] = _fixture.Options.Port.ToString(),
-            ["RabbitMq:UserName"] = _fixture.Options.UserName,
-            ["RabbitMq:Password"] = _fixture.Options.Password,
-            ["RabbitMq:VirtualHost"] = _fixture.Options.VirtualHost
-        });
-        builder.Services.AddWorkerServices(builder.Configuration);
-        overrides?.Invoke(builder.Services);
-        return builder.Build();
-    }
+   => WorkerTestHost.Create(_postgre, _fixture, outboxEnabled: false, overrides);
     private static OrderCreated CreateEvent()
     {
         return new OrderCreated(
@@ -91,7 +50,7 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
     [Fact]
     public async Task PublishAsync_PublishesPersistentJsonMessage()
     {
-        await PrepareQueuesAsync();
+        await CommonFunction.PrepareQueuesAsync(_fixture).WithTimeout();
 
         await using var bus = new RabbitMqEventBus(_fixture.Options);
 
@@ -100,7 +59,7 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
         await bus.PublishAsync(
             RoutingKeys.OrderCreated,
             message,
-            CancellationToken.None);
+            CancellationToken.None).WithTimeout();
 
         var factory = new ConnectionFactory
         {
@@ -136,7 +95,7 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
     [Fact]
     public async Task PublishAsync_Twice_PublishesTwoMessages()
     {
-        await PrepareQueuesAsync();
+        await CommonFunction.PrepareQueuesAsync(_fixture).WithTimeout();
 
         await using var bus = new RabbitMqEventBus(_fixture.Options);
 
@@ -146,12 +105,12 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
         await bus.PublishAsync(
             RoutingKeys.OrderCreated,
             first,
-            CancellationToken.None);
+            CancellationToken.None).WithTimeout();
 
         await bus.PublishAsync(
             RoutingKeys.OrderCreated,
             second,
-            CancellationToken.None);
+            CancellationToken.None).WithTimeout();
 
         var factory = new ConnectionFactory
         {
@@ -189,7 +148,7 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
     [Fact]
     public async Task PublishAsync_RejectWithoutRequeue_MovesMessageToDlq()
     {
-        await PrepareQueuesAsync();
+        await CommonFunction.PrepareQueuesAsync(_fixture).WithTimeout();
 
         await using var bus = new RabbitMqEventBus(_fixture.Options);
 
@@ -198,7 +157,7 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
         await bus.PublishAsync(
             RoutingKeys.OrderCreated,
             message,
-            CancellationToken.None);
+            CancellationToken.None).WithTimeout();
 
         var factory = new ConnectionFactory
         {
@@ -251,7 +210,7 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
     [Fact]
     public async Task PublishAsync_UnroutableRoutingKey_ObserveBehavior()
     {
-        await PrepareQueuesAsync();
+        await CommonFunction.PrepareQueuesAsync(_fixture).WithTimeout();
 
         await using var bus = new RabbitMqEventBus(_fixture.Options);
 
@@ -261,55 +220,61 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
             () => bus.PublishAsync(
                 "nobody.listens",
                 message,
-                CancellationToken.None));
+                CancellationToken.None)).WithTimeout();
         _output.WriteLine(exception is null ? "NO EXCEPTION" : $"{exception.GetType().FullName}: {exception.Message}");
         Assert.NotNull(exception);     // tin sai routing key không được biến mất im lặng
     }
     [Fact]
     public async Task ConsumeAsync_ValidMessage_CreatesNotification()
     {
-        await PrepareQueuesAsync();
+        await CommonFunction.PrepareQueuesAsync(_fixture).WithTimeout();
 
         using var host = CreateWorkerHost();
 
-        await host.StartAsync();
-
-        var message = CreateEvent();
-
-        await using var bus = new RabbitMqEventBus(_fixture.Options);
-
-        await bus.PublishAsync(
-            RoutingKeys.OrderCreated,
-            message,
-            CancellationToken.None);
-
-        var timeout = DateTime.UtcNow.AddSeconds(10);
-        Notification? notification = null;
-
-        while (DateTime.UtcNow < timeout)
+        await host.StartAsync().WithTimeout();
+        try
         {
-            await using var db = _postgre.CreateContext();
+            var message = CreateEvent();
 
-            notification = await db.Notifications
-                .FirstOrDefaultAsync(x => x.OrderId == message.OrderId);
+            await using var bus = new RabbitMqEventBus(_fixture.Options);
 
-            if (notification is not null)
-                break;
+            await bus.PublishAsync(
+                RoutingKeys.OrderCreated,
+                message,
+                CancellationToken.None).WithTimeout();
 
-            await Task.Delay(100);
+            var timeout = DateTime.UtcNow.AddSeconds(10);
+            Notification? notification = null;
+
+            while (DateTime.UtcNow < timeout)
+            {
+                await using var db = _postgre.CreateContext();
+
+                notification = await db.Notifications
+                    .FirstOrDefaultAsync(x => x.OrderId == message.OrderId);
+
+                if (notification is not null)
+                    break;
+
+                await Task.Delay(100);
+            }
+
+            Assert.NotNull(notification);
+
+
         }
-
-        Assert.NotNull(notification);
-
-        await host.StopAsync();
+        finally
+        {
+            await host.StopAsync().WithTimeout();
+        }
     }
     [Fact]
     public async Task ConsumeAsync_InvalidJson_MovesMessageToDlq()
     {
-        await PrepareQueuesAsync();
+        await CommonFunction.PrepareQueuesAsync(_fixture).WithTimeout();
 
         using var provider = CreateWorkerHost();
-        await provider.StartAsync(CancellationToken.None);
+        await provider.StartAsync(CancellationToken.None).WithTimeout();
 
         var factory = new ConnectionFactory
         {
@@ -357,7 +322,7 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
 
         Assert.Null(mainResult);
 
-        await provider.StopAsync(CancellationToken.None);
+        await provider.StopAsync(CancellationToken.None).WithTimeout();
     }
     private sealed class ThrowingHandler : IOrderCreatedHandler
     {
@@ -368,11 +333,11 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
     [Fact]
     public async Task ConsumeAsync_HandlerThrows_MovesMessageToDlq()
     {
-        await PrepareQueuesAsync();
+        await CommonFunction.PrepareQueuesAsync(_fixture).WithTimeout();
 
         using var host = CreateWorkerHost(s => s.AddScoped<IOrderCreatedHandler, ThrowingHandler>());
 
-        await host.StartAsync(CancellationToken.None);
+        await host.StartAsync(CancellationToken.None).WithTimeout();
 
         var message = CreateEvent();
 
@@ -380,7 +345,7 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
         await bus.PublishAsync(
             RoutingKeys.OrderCreated,
             message,
-            CancellationToken.None);
+            CancellationToken.None).WithTimeout();
 
         var factory = new ConnectionFactory
         {
@@ -413,16 +378,16 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
         Assert.NotNull(dlqResult.BasicProperties.Headers);
         Assert.Contains("x-death", dlqResult.BasicProperties.Headers.Keys);
 
-        await host.StopAsync(CancellationToken.None);
+        await host.StopAsync(CancellationToken.None).WithTimeout();
     }
     [Fact]
     public async Task ConsumeAsync_ConsumerStopped_MessageRemainsAndIsProcessedAfterRestart()
     {
-        await PrepareQueuesAsync();
+        await CommonFunction.PrepareQueuesAsync(_fixture).WithTimeout();
 
         using var provider = CreateWorkerHost();
-        await provider.StartAsync(CancellationToken.None);
-        await provider.StopAsync(CancellationToken.None);
+        await provider.StartAsync(CancellationToken.None).WithTimeout();
+        await provider.StopAsync(CancellationToken.None).WithTimeout();
 
         var message = CreateEvent();
 
@@ -430,7 +395,7 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
         await bus.PublishAsync(
             RoutingKeys.OrderCreated,
             message,
-            CancellationToken.None);
+            CancellationToken.None).WithTimeout();
 
         var factory = new ConnectionFactory
         {
@@ -450,7 +415,7 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
 
         Assert.Equal(1u, queueInfo.MessageCount);
         using var host = CreateWorkerHost();
-        await host.StartAsync(CancellationToken.None);
+        await host.StartAsync(CancellationToken.None).WithTimeout();
 
         var timeout = DateTime.UtcNow.AddSeconds(10);
         Notification? notification = null;
@@ -470,6 +435,6 @@ public sealed class RabbitMqEventBusTests : IClassFixture<RabbitFixture>
 
         Assert.NotNull(notification);
 
-        await host.StopAsync(CancellationToken.None);
+        await host.StopAsync(CancellationToken.None).WithTimeout();
     }
 }

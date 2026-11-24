@@ -1,3 +1,4 @@
+using BusinessManagement.Application.Messaging;
 using BusinessManagement.Application.Notifications;
 using BusinessManagement.Infrastructure;
 using Microsoft.Extensions.Configuration;
@@ -16,7 +17,9 @@ public static class WorkerServiceExtensions
 
         services.AddScoped<IOrderCreatedHandler, OrderCreatedHandler>();
         services.AddHostedService<OrderCreatedConsumer>();
-
+        services.AddScoped<OutboxRelayService>();
+        if (configuration.GetValue("Outbox:Enabled", true))
+            services.AddHostedService<OutboxRelayWorker>();
         return services;
     }
 }

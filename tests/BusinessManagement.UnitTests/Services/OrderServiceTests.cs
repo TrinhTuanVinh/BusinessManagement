@@ -22,8 +22,7 @@ public class OrderServiceTests(PostgresFixture fixture)
                new PricingService(
                    new DiscountCalculator(Array.Empty<IDiscountStrategy>()),
                    new InMemoryVoucherFactory()),
-               logger ?? NullLogger<OrderService>.Instance,
-               events ?? new FakeEventBus());
+               logger ?? NullLogger<OrderService>.Instance);
     private async Task<(Guid CustomerId, Guid[] Products)> SeedAsync(params int[] stocks)
     {
         var customer = new Customer("Buyer", $"{Guid.NewGuid():N}@test.com");
@@ -504,160 +503,73 @@ public class OrderServiceTests(PostgresFixture fixture)
                 StringComparison.OrdinalIgnoreCase));
     }
     [Fact]
-    public async Task Create_Success_PublishesOrderCreatedEvent()
+    public async Task Create_Success_WritesOneOutboxRowForTheOrder()
     {
         var (customerId, p) = await SeedAsync(10);
 
-        await using var db = fixture.CreateContext();
+        OrderDto order;
+        await using (var db = fixture.CreateContext())
+            order = await NewSut(db).CreateAsync(customerId, new[] { new OrderLine(p[0], 2) }, null, Ct);
 
-        var events = new FakeEventBus();
-        var logger = new ListLogger<OrderService>();
+        await using var check = fixture.CreateContext();
+        var row = await check.OutboxMessages.AsNoTracking()
+            .SingleAsync(m => m.Payload.Contains(order.Id.ToString()));
 
-        var order = await NewSut(db, logger, events).CreateAsync(
-            customerId,
-            new[] { new OrderLine(p[0], 2) },
-            null,
-            Ct);
+        Assert.Equal(RoutingKeys.OrderCreated, row.RoutingKey);
+        Assert.Equal(nameof(OrderCreated), row.Type);
+        Assert.Null(row.ProcessedAt);
 
-        var published = Assert.Single(events.Published);
-
-        Assert.Equal(RoutingKeys.OrderCreated, published.RoutingKey);
-
-        var message = Assert.IsType<OrderCreated>(published.Message);
-
-        Assert.NotEqual(Guid.Empty, message.EventId);
+        var message = JsonSerializer.Deserialize<OrderCreated>(row.Payload)!;
+        Assert.Equal(row.Id, message.EventId);                    // một mã duy nhất theo dõi sự kiện từ DB đến consumer
         Assert.Equal(order.Id, message.OrderId);
         Assert.Equal(customerId, message.CustomerId);
         Assert.Equal(order.Total, message.Total);
     }
+
     [Fact]
-    public async Task Create_OutOfStock_DoesNotPublishEvent()
+    public async Task Create_OutOfStock_WritesNoOutboxRow()
     {
         var (customerId, p) = await SeedAsync(0);
 
-        await using var db = fixture.CreateContext();
+        await using (var db = fixture.CreateContext())
+            await Assert.ThrowsAsync<ConflictException>(
+                () => NewSut(db).CreateAsync(customerId, new[] { new OrderLine(p[0], 1) }, null, Ct));
 
-        var events = new FakeEventBus();
-        var logger = new ListLogger<OrderService>();
-
-        await Assert.ThrowsAsync<ConflictException>(() =>
-            NewSut(db, logger, events).CreateAsync(
-                customerId,
-                new[] { new OrderLine(p[0], 1) },
-                null,
-                Ct));
-
-        Assert.Empty(events.Published);
+        await using var check = fixture.CreateContext();
+        Assert.False(await check.OutboxMessages.AnyAsync(m => m.Payload.Contains(customerId.ToString())));
     }
+
     [Fact]
-    public async Task Create_InvalidVoucher_DoesNotPublishEvent()
+    public async Task Create_Success_OutboxPayloadDoesNotContainCustomerEmail()
     {
         var (customerId, p) = await SeedAsync(10);
-
-        await using var db = fixture.CreateContext();
-
-        var events = new FakeEventBus();
-        var logger = new ListLogger<OrderService>();
-
-        await Assert.ThrowsAsync<DomainException>(() =>
-            NewSut(db, logger, events).CreateAsync(
-                customerId,
-                new[] { new OrderLine(p[0], 1) },
-                "INVALID",
-                Ct));
-
-        Assert.Empty(events.Published);
-    }
-    [Fact]
-    public async Task Create_InactiveCustomer_DoesNotPublishEvent()
-    {
-        var (customerId, p) = await SeedAsync(10);
-
-        await using var db = fixture.CreateContext();
-
-        var customer = await db.Customers.SingleAsync(
-            c => c.Id == customerId);
-
-        customer.Deactivate();
-        await db.SaveChangesAsync();
-
-        var events = new FakeEventBus();
-        var logger = new ListLogger<OrderService>();
-
-        await Assert.ThrowsAsync<DomainException>(() =>
-            NewSut(db, logger, events).CreateAsync(
-                customerId,
-                new[] { new OrderLine(p[0], 1) },
-                null,
-                Ct));
-
-        Assert.Empty(events.Published);
-    }
-    [Fact]
-    public async Task Create_EventBusThrows_OrderIsStillPersistedAndErrorIsLogged()
-    {
-        var (customerId, p) = await SeedAsync(10);
-
-        var events = new FakeEventBus
-        {
-            ThrowOnPublish = new InvalidOperationException("RabbitMQ unavailable")
-        };
-
-        var logger = new ListLogger<OrderService>();
-
-        Guid orderId;
+        string email;
+        await using (var db = fixture.CreateContext())
+            email = await db.Customers.Where(c => c.Id == customerId).Select(c => c.Email).SingleAsync();
 
         await using (var db = fixture.CreateContext())
-        {
-            var order = await NewSut(db, logger, events).CreateAsync(
-                customerId,
-                new[] { new OrderLine(p[0], 1) },
-                null,
-                Ct);
+            await NewSut(db).CreateAsync(customerId, new[] { new OrderLine(p[0], 1) }, null, Ct);
 
-            orderId = order.Id;
-        }
+        await using var check = fixture.CreateContext();
+        var payload = await check.OutboxMessages.Where(m => m.Payload.Contains(customerId.ToString()))
+            .Select(m => m.Payload).SingleAsync();
 
-        // Dùng DbContext mới để xác nhận dữ liệu thực sự đã được lưu.
-        await using (var verifyDb = fixture.CreateContext())
-        {
-            Assert.True(await verifyDb.Orders.AnyAsync(o => o.Id == orderId));
-        }
-
-        Assert.Contains(
-            logger.Entries,
-            entry =>
-                entry.Level == LogLevel.Error &&
-                entry.Message.Contains(orderId.ToString()));
+        Assert.DoesNotContain(email, payload, StringComparison.OrdinalIgnoreCase);
     }
+
     [Fact]
-    public async Task Create_OrderCreatedEventDoesNotContainCustomerEmail()
+    public async Task Create_ConcurrentOrders_EachOrderHasExactlyOneOutboxRow()
     {
-        var (customerId, p) = await SeedAsync(10);
+        var (customerId, p) = await SeedAsync(50);
 
-        await using var db = fixture.CreateContext();
+        await Task.WhenAll(Enumerable.Range(0, 5).Select(async _ =>
+        {
+            await using var db = fixture.CreateContext();
+            await NewSut(db).CreateAsync(customerId, new[] { new OrderLine(p[0], 1) }, null, Ct);
+        }));
 
-        var customer = await db.Customers.SingleAsync(
-            c => c.Id == customerId);
-
-        var email = customer.Email;
-
-        var events = new FakeEventBus();
-        var logger = new ListLogger<OrderService>();
-
-        await NewSut(db, logger, events).CreateAsync(
-            customerId,
-            new[] { new OrderLine(p[0], 1) },
-            null,
-            Ct);
-
-        var published = Assert.Single(events.Published);
-
-        var json = JsonSerializer.Serialize(published.Message);
-
-        Assert.DoesNotContain(
-            email,
-            json,
-            StringComparison.OrdinalIgnoreCase);
+        await using var check = fixture.CreateContext();
+        Assert.Equal(5, await check.Orders.CountAsync(o => o.CustomerId == customerId));
+        Assert.Equal(5, await check.OutboxMessages.CountAsync(m => m.Payload.Contains(customerId.ToString())));
     }
 }

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using BusinessManagement.Application.Abstractions;
 using BusinessManagement.Application.Checkout.Pricing;
 using BusinessManagement.Application.Common;
@@ -23,13 +24,11 @@ public class OrderService
     private readonly IAppDbContext _db;
     private readonly PricingService _pricing;
     private ILogger<OrderService> _logger;
-    private IEventBus _event;
-    public OrderService(IAppDbContext db, PricingService pricing, ILogger<OrderService> logger, IEventBus eventBus)
+    public OrderService(IAppDbContext db, PricingService pricing, ILogger<OrderService> logger)
     {
         _db = db;
         _pricing = pricing;
         _logger = logger;
-        _event = eventBus;
     }
 
     public async Task<OrderDto> CreateAsync(Guid customerId, IReadOnlyList<OrderLine> lines, string? voucherCode, CancellationToken ct)
@@ -80,12 +79,15 @@ public class OrderService
         }
 
         _db.Orders.Add(order);
+        var eventId = Guid.CreateVersion7();
+        var created = new OrderCreated(eventId, order.Id, customerId, order.Total, DateTime.UtcNow);
+        _db.OutboxMessages.Add(new OutboxMessage(eventId, RoutingKeys.OrderCreated, nameof(OrderCreated),
+            JsonSerializer.Serialize(created)));
         await _db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         _logger.LogInformation(
             "Order {OrderId} created for customer {CustomerId}: {ItemCount} items, subtotal {Subtotal}, discount {Discount}",
             order.Id, customerId, merged.Count, order.Subtotal, order.DiscountAmount);
-        await PublishCreatedAsync(order);
         return await GetAsync(order.Id, ct);
     }
 
@@ -177,17 +179,4 @@ public class OrderService
         return new PageResult<OrderSummaryDto>(items, page, pageSize, total);
     }
 
-    private async Task PublishCreatedAsync(Order order)
-    {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        try
-        {
-            await _event.PublishAsync(RoutingKeys.OrderCreated,
-                new OrderCreated(Guid.NewGuid(), order.Id, order.CustomerId, order.Total, DateTime.UtcNow), cts.Token);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to publish OrderCreated for order {OrderId}", order.Id);
-        }
-    }
 }

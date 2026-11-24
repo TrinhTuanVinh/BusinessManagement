@@ -10,4 +10,5 @@ public static class RoutingKeys
 public interface IEventBus
 {
     Task PublishAsync<T>(string routingKey, T message, CancellationToken ct);
+    Task PublishRawAsync(string routingKey, string type, Guid messageId, ReadOnlyMemory<byte> body, CancellationToken ct);
 }

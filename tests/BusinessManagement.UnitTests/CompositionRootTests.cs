@@ -102,21 +102,4 @@ public class CompositionRootTests
         Assert.Contains("Key", ex.Message);
     }
 
-    [Fact]
-    public void AddInfrastructure_MissingRabbitPassword_FailsFast()
-    {
-        var ex = Assert.Throws<InvalidOperationException>(() =>
-           Build(new Dictionary<string, string?>
-           {
-               ["Payments:Bank:MerchantAccount"] = "TEST-ACCOUNT",
-               ["ConnectionStrings:Default"] = "Host=localhost;Database=unused;Username=u;Password=p",
-               ["Jwt:Issuer"] = "i",
-               ["Jwt:Audience"] = "a",
-               ["Jwt:Key"] = "abssc",
-               ["RabbitMq:Host"] = "c",
-               ["RabbitMq:UserName"] = "d",
-           }));
-
-        Assert.Contains("Key", ex.Message);
-    }
 }
