@@ -2,10 +2,10 @@ using System.ComponentModel.DataAnnotations;
 using BusinessManagement.Application.Orders;
 using BusinessManagement.Domain.Common;
 
-public record OrderLineRequest([Range(1, 10_000)] int Quantity, Guid ProductId);
+public record OrderLineRequest([Range(1, 10_000)] int Quantity, [NotEmptyGuid] Guid ProductId);
 
 public record CreateOrderRequest(
-    Guid CustomerId,
+    [NotEmptyGuid] Guid CustomerId,
     [Required, MinLength(1), MaxLength(100)] List<OrderLineRequest> Items,
     [StringLength(30)] string? VoucherCode
 );

@@ -42,6 +42,7 @@ public class OrderService
             .OrderBy(l => l.ProductId)
             .ToList();
 
+        if (customerId == Guid.Empty) throw new DomainException("Customer id is required.");
         var customer = await _db.Customers.AsNoTracking().Where(c => c.Id == customerId)
             .Select(c => new { c.IsActive }).FirstOrDefaultAsync(ct)
             ?? throw new DomainException($"Customer '{customerId}' was not found.");

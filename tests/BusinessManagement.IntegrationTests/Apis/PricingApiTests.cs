@@ -113,9 +113,9 @@ public class PricingApiTests : IClassFixture<ApiFactory>
         Assert.Contains("traceId", text);
     }
     [Fact]
-    public async Task CreateOrder_MissingCustomerId_Returns422()
+    public async Task CreateOrder_MissingCustomerId_Returns400()
     {
-        var client = _factory.CreateClientFor("Staff");
+        var client = _factory.CreateClientFor("Admin");
 
         var response = await client.PostAsJsonAsync(
             "/api/orders",
@@ -130,18 +130,14 @@ public class PricingApiTests : IClassFixture<ApiFactory>
                     }
                 }
             });
-        var responseBody = await response.Content.ReadAsStringAsync();
-
-        Console.WriteLine($"Status: {response.StatusCode}");
-        Console.WriteLine($"Response: {responseBody}");
 
         Assert.Equal(
-            HttpStatusCode.UnprocessableEntity,
+            HttpStatusCode.BadRequest,
             response.StatusCode
         );
     }
     [Fact]
-    public async Task CreateOrder_MissingProductId_Returns422()
+    public async Task CreateOrder_MissingProductId_Returns400()
     {
         var client = _factory.CreateClientFor("Admin");
 
@@ -156,6 +152,6 @@ public class PricingApiTests : IClassFixture<ApiFactory>
                 }
             });
 
-        Assert.Equal((HttpStatusCode)422, response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 }
