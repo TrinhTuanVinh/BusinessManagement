@@ -1,7 +1,9 @@
 
+using System.Net;
 using BusinessManagement.Application.Messaging;
 using BusinessManagement.Application.Notifications;
 using BusinessManagement.Infrastructure.Persistence;
+using BusinessManagement.IntegrationTests.Helpers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -86,7 +88,7 @@ public sealed class OrderCreatedHandlerTests
         }).ToArray();
 
         gate.SetResult();
-        
+
         var exception = await Record.ExceptionAsync(
             () => Task.WhenAll(tasks));
 
@@ -135,5 +137,40 @@ public sealed class OrderCreatedHandlerTests
                 x => x.Consumer == OrderCreatedHandler.ConsumerName &&
                      (x.EventId == first.EventId ||
                       x.EventId == second.EventId)));
+    }
+    [Fact]
+    public async Task Api_OnEmptyDatabase_AppliesMigrationsAtStartup()
+    {
+        var connectionString = await _postgres.CreateEmptyDatabaseAsync();
+
+        await using var factory = new ApiFactory();
+        var client = factory.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("ConnectionStrings:Default", connectionString);
+            b.UseSetting("Database:MigrateOnStartup", "true");
+        }).CreateClient();
+
+        var response = await client.GetAsync("/health");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connectionString).Options);
+        Assert.Empty(await db.Database.GetPendingMigrationsAsync());
+        Assert.NotEmpty(await db.Database.GetAppliedMigrationsAsync());
+        Assert.Equal(0, await db.Users.CountAsync());
+    }
+    [Fact]
+    public async Task Api_OnEmptyDatabase_WithoutFlag_DoesNotMigrate()
+    {
+        var connectionString = await _postgres.CreateEmptyDatabaseAsync();
+
+        await using var factory = new ApiFactory();
+        using var client = factory.WithWebHostBuilder(b =>
+            b.UseSetting("ConnectionStrings:Default", connectionString)).CreateClient();
+
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health")).StatusCode);
+
+        await using var db = new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connectionString).Options);
+        Assert.NotEmpty(await db.Database.GetPendingMigrationsAsync());  
     }
 }

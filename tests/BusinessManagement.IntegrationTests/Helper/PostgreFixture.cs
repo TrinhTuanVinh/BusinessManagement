@@ -1,6 +1,7 @@
 using BusinessManagement.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Npgsql;
 using Testcontainers.PostgreSql;
 
 public class PostgresFixture : IAsyncLifetime
@@ -25,6 +26,20 @@ public class PostgresFixture : IAsyncLifetime
             .Options;
 
         return new AppDbContext(options);
+    }
+    public async Task<string> CreateEmptyDatabaseAsync()
+    {
+        var name = $"empty_{Guid.NewGuid():N}";
+        var builder = new NpgsqlConnectionStringBuilder(_container.GetConnectionString());
+        await using (var admin = new NpgsqlConnection(builder.ConnectionString))
+        {
+            await admin.OpenAsync();
+            await using var cmd = admin.CreateCommand();
+            cmd.CommandText = $"CREATE DATABASE \"{name}\"";
+            await cmd.ExecuteNonQueryAsync();
+        }
+        builder.Database = name;
+        return builder.ConnectionString;
     }
 }
 

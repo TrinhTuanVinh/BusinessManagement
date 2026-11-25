@@ -31,7 +31,47 @@ services:
         interval: 10s
         timeout: 5s
         retries: 10
+  api:
+      build:
+        context: .
+        dockerfile: src/BusinessManagement.Api/Dockerfile
+      container_name: bm-api
+      environment:
+        ASPNETCORE_ENVIRONMENT: Production
+        ConnectionStrings__Default: "Host=db;Port=5432;Database=businessmanagement;Username=${POSTGRES_USER:-app};Password=${POSTGRES_PASSWORD}"
+        Payments__Bank__MerchantAccount: "0000000000"
+        Jwt__Issuer: "BusinessManagement.Api"
+        Jwt__Audience: "BusinessManagement.Clients"
+        Jwt__Key: "${JWT_KEY:?Set JWT_KEY in .env}"
+        Database__MigrateOnStartup: "true"
+      ports:
+        - "8080:8080"
+      depends_on:
+        db:
+          condition: service_healthy
+      healthcheck:
+        test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+        interval: 10s
+        timeout: 5s
+        retries: 10
+        start_period: 20s
 
+  worker:
+    build:
+      context: .
+      dockerfile: src/BusinessManagement.Worker/Dockerfile
+    container_name: bm-worker
+    environment:
+      ConnectionStrings__Default: "Host=db;Port=5432;Database=businessmanagement;Username=${POSTGRES_USER:-app};Password=${POSTGRES_PASSWORD}"
+      RabbitMq__Host: "rabbitmq"
+      RabbitMq__UserName: "${RABBITMQ_USER:-app}"
+      RabbitMq__Password: "${RABBITMQ_PASSWORD}"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    restart: unless-stopped
 volumes:
   bm-pgdata:
   bm-rabbitdata:
