@@ -149,7 +149,7 @@ public class OrderProcessorTests
         var bank = new FakeRefundablePayment("Bank");
         var sut = new RefundProcessor(new[] { bank });
 
-        sut.Refund("bank", 50m);                       // cũng kiểm tra không phân biệt hoa thường
+        sut.Refund("bank", 50m);
 
         Assert.Equal(new[] { 50m }, bank.Refunded);
     }
@@ -157,7 +157,7 @@ public class OrderProcessorTests
     [Fact]
     public void Refund_MethodWithoutRefundSupport_ThrowsDomainException()
     {
-        var sut = new RefundProcessor(new[] { new FakeRefundablePayment("Bank") });   // Cash không có trong danh sách
+        var sut = new RefundProcessor(new[] { new FakeRefundablePayment("Bank") });
 
         var ex = Assert.Throws<DomainException>(() => sut.Refund("Cash", 50m));
 
