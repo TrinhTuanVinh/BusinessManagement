@@ -115,7 +115,7 @@ public class PricingApiTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task CreateOrder_MissingCustomerId_Returns422()
     {
-        var client = _factory.CreateClientFor("Admin");
+        var client = _factory.CreateClientFor("Staff");
 
         var response = await client.PostAsJsonAsync(
             "/api/orders",
@@ -130,8 +130,15 @@ public class PricingApiTests : IClassFixture<ApiFactory>
                     }
                 }
             });
+        var responseBody = await response.Content.ReadAsStringAsync();
 
-        Assert.Equal((HttpStatusCode)422, response.StatusCode);
+        Console.WriteLine($"Status: {response.StatusCode}");
+        Console.WriteLine($"Response: {responseBody}");
+
+        Assert.Equal(
+            HttpStatusCode.UnprocessableEntity,
+            response.StatusCode
+        );
     }
     [Fact]
     public async Task CreateOrder_MissingProductId_Returns422()
