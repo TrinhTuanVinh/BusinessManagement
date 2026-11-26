@@ -1,6 +1,6 @@
 using BusinessManagement.Application.Messaging;
 using BusinessManagement.Domain.Entities;
-using BusinessManagement.Infrastructure.Persistence;
+using BusinessManagement.Infrastructure.Messaging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Text.Json;

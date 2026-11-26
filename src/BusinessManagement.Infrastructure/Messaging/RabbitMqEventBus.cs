@@ -1,6 +1,5 @@
 using System.Text.Json;
 using BusinessManagement.Application.Messaging;
-using BusinessManagement.Infrastructure.Messaging;
 using RabbitMQ.Client;
 
 namespace BusinessManagement.Infrastructure.Messaging;
@@ -72,9 +71,9 @@ public sealed class RabbitMqEventBus : IEventBus, IAsyncDisposable
         await channel.BasicPublishAsync(
             exchange: RabbitMqTopology.Exchange,
             routingKey: routingKey,
-             mandatory: true,
-             props,
-             body,
-             ct);
+            mandatory: true,
+            props,
+            body,
+            ct);
     }
 }

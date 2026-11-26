@@ -1,9 +1,10 @@
 using System.Text;
 using BusinessManagement.Application.Abstractions;
+using BusinessManagement.Application.Messaging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
-namespace BusinessManagement.Application.Messaging;
+namespace BusinessManagement.Infrastructure.Messaging;
 
 public class OutboxRelayService(IAppDbContext db, IEventBus bus, ILogger<OutboxRelayService> logger)
 {

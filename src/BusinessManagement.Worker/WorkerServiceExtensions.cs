@@ -1,8 +1,6 @@
-using BusinessManagement.Application.Messaging;
 using BusinessManagement.Application.Notifications;
 using BusinessManagement.Infrastructure;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+using BusinessManagement.Infrastructure.Messaging;
 
 namespace BusinessManagement.Worker;
 

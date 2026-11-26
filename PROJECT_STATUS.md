@@ -263,7 +263,6 @@ dotnet test --filter "FullyQualifiedName~OrderServiceTests"
 - Mọi người dùng đăng nhập đều xem và huỷ được đơn bất kỳ (chưa gắn đơn với người tạo)
 - Giá sản phẩm được đọc trước transaction; đổi giá đồng thời có thể lệch vài mili-giây
 - `Order.Cancel()` ở Domain không được `OrderService` dùng (huỷ bằng SQL); đồng bộ hoặc bỏ
-- `OrderEventPublisher` và các handler sự kiện trong process (Observer Ngày 6) chưa ai dùng; quyết định giữ hay xoá
 - Khi làm Payments: tránh chuỗi thanh toán → ghi log → thông báo không atomic (Outbox)
 - `IVoucherFactory` Singleton: đổi sang Scoped khi đọc DB
 - Chưa có `Customer.Segment`: ưu đãi theo loại khách chưa áp dụng cho đơn thật (đang dùng "Standard"); sản phẩm giá 0 + voucher ra 422 khó hiểu

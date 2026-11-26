@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
+namespace BusinessManagement.Api.Contracts.Validation;
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Parameter | AttributeTargets.Field)]
 public sealed class NotEmptyGuidAttribute : ValidationAttribute
 {

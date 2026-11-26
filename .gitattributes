@@ -1,0 +1,19 @@
+# Automatically detect text files and normalize line endings
+* text=auto
+
+# Shell scripts must always use LF
+*.sh text eol=lf
+
+# Windows batch scripts
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Project and configuration files
+*.cs text
+*.csproj text
+*.props text
+*.targets text
+*.json text
+*.yml text
+*.yaml text
+*.md text

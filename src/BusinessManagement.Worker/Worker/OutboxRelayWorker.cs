@@ -1,4 +1,4 @@
-using BusinessManagement.Application.Messaging;
+using BusinessManagement.Infrastructure.Messaging;
 
 namespace BusinessManagement.Worker;
 
@@ -22,7 +22,7 @@ public sealed class OutboxRelayWorker(IServiceScopeFactory scopes, IConfiguratio
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
             catch (Exception ex) { logger.LogError(ex, "Outbox relay iteration failed"); }
 
-            if (published < batchSize)                         // còn việc thì chạy tiếp ngay; hết việc thì chờ
+            if (published < batchSize)
             {
                 try { await Task.Delay(interval, stoppingToken); }
                 catch (OperationCanceledException) { break; }

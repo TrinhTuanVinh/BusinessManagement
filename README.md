@@ -1,6 +1,6 @@
 # Business Management API
 
-![ci](https://github.com/<user>/<repo>/actions/workflows/ci.yml/badge.svg)
+https://github.com/TrinhTuanVinh/BusinessManagement/actions/workflows/ci.yml/badge.svg
 
 ASP.NET Core (.NET 10) backend for products, customers and orders. It practises production-style
 concerns: transactional stock reservation, JWT with roles, a transactional outbox with RabbitMQ,
@@ -11,9 +11,6 @@ and an idempotent consumer.
 - Transactional outbox + relay (`FOR UPDATE SKIP LOCKED`, exponential backoff); idempotent consumer, retry queue and dead-letter queue.
 - Query-count tests prevent N+1; index choices verified with EXPLAIN ANALYZE (24 ms to under 1 ms on 100k orders).
 - 200+ tests against real PostgreSQL and RabbitMQ (Testcontainers).
-
-## Architecture
-(two Mermaid diagrams, see below)
 
 ## Architecture - Transactional Outbox with RabbitMQ
 

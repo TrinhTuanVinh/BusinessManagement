@@ -1,11 +1,4 @@
 <Solution>
-  <Folder Name="/learning/">
-    <Project Path="learning/Day01/Day01.csproj" />
-    <Project Path="learning/Day04/Day04.csproj" />
-  </Folder>
-  <Folder Name="/playground/">
-    <Project Path="learning/Day03/Day03.csproj" />
-  </Folder>
   <Folder Name="/src/">
     <Project Path="src/BusinessManagement.Api/BusinessManagement.Api.csproj" />
     <Project Path="src/BusinessManagement.Application/BusinessManagement.Application.csproj" />

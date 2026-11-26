@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using BusinessManagement.Api.Contracts.Validation;
 using BusinessManagement.Application.Orders;
 using BusinessManagement.Domain.Common;
 

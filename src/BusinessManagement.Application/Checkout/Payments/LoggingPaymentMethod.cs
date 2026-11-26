@@ -11,14 +11,12 @@ public class LoggingPaymentMethod : IPaymentMethod
     public LoggingPaymentMethod(IPaymentMethod inner, ILogger<LoggingPaymentMethod> logger)
         => (_inner, _logger) = (inner, logger);
 
-    public string PaymentMethod => _inner.PaymentMethod;   // phải trả đúng khóa của inner
+    public string PaymentMethod => _inner.PaymentMethod;
 
     public void Pay(decimal amount)
     {
 
-        // TODO: LogInformation("Paying {Amount} via {Method}", ...) trước khi gọi
         _logger.LogInformation("Paying {Amount} via {Method}", amount, _inner.PaymentMethod);
-        // đo bằng Stopwatch; gọi _inner.Pay(amount); log kèm {ElapsedMs}
         Stopwatch stopwatch = Stopwatch.StartNew();
         try
         {
@@ -26,7 +24,6 @@ public class LoggingPaymentMethod : IPaymentMethod
             stopwatch.Stop();
             _logger.LogInformation("Paid {Amount} via {Method} in {ElapsedMs} ms",
           amount, _inner.PaymentMethod, stopwatch.ElapsedMilliseconds);
-            // nếu exception: LogError(ex, ...) rồi `throw;`
         }
         catch (System.Exception ex)
         {

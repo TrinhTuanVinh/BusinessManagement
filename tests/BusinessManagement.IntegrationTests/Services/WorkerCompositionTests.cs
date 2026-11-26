@@ -1,4 +1,4 @@
-using BusinessManagement.Application.Messaging;
+using BusinessManagement.Infrastructure.Messaging;
 using BusinessManagement.Worker;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

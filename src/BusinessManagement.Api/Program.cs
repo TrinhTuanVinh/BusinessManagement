@@ -46,14 +46,28 @@ builder.Services.AddControllers().AddJsonOptions(o => o.JsonSerializerOptions.Co
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
 var app = builder.Build();
+var openApiEnabled = builder.Configuration.GetValue<bool>(
+    "OpenApi:Enabled",
+    app.Environment.IsDevelopment()
+);
 
+if (openApiEnabled)
+{
+    app.MapOpenApi().AllowAnonymous();
+
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint(
+            "/openapi/v1.json",
+            "BusinessManagement API v1"
+        );
+
+        options.RoutePrefix = "swagger";
+    });
+}
 app.UseMiddleware<RequestIdMiddleware>();
 app.UseExceptionHandler();
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi().AllowAnonymous();
-}
 app.MapHealthChecks("/health").AllowAnonymous();
 
 app.UseHttpsRedirection();

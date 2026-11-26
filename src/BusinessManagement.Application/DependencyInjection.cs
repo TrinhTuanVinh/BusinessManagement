@@ -35,7 +35,6 @@ public static class DependencyInjection
         services.AddScoped<DiscountCalculator>();
         services.AddScoped<IOrderProcessedHandler, LogOrderHandler>();
         services.AddScoped<IOrderProcessedHandler, NotifyOrderHandler>();
-        services.AddScoped<OrderEventPublisher>();
         services.AddScoped<RefundProcessor>();
 
         return services;
